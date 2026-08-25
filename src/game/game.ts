@@ -4,7 +4,7 @@ import { Conductor } from '../audio/conductor';
 import { MusicPlayer } from '../audio/music';
 import { Sfx, type Judgement } from '../audio/sfx';
 import type { StageDef } from '../data/types';
-import { City } from '../world/citygen';
+import { City, type BuildingInst } from '../world/citygen';
 import { CityMesh, AnchorMasts } from '../world/citymesh';
 import { Ground, Parks, Water } from '../world/ground';
 import { SKY_PRESETS } from '../world/palette';
@@ -48,6 +48,11 @@ export interface HudState {
   lastOffset: number;
   countdown: number;
   landmark: string | null;
+  /** 지금 지나는 구역 이름 (아파트 단지·상권 등). 없으면 null. */
+  place: string | null;
+  /** 최근 근접한 주요 랜드마크 이름 (연출용 배너) */
+  calloutTitle: string | null;
+  calloutAt: number;
 }
 
 export interface StageResult {
@@ -83,6 +88,9 @@ export class Game {
     lastOffset: 0,
     countdown: 0,
     landmark: null,
+    place: null,
+    calloutTitle: null,
+    calloutAt: -99,
   };
 
   phase: Phase = 'loading';
@@ -132,6 +140,12 @@ export class Game {
   private clearedAt = 0;
   private lastBeatIndex = -1;
   private elapsed = 0;
+
+  private landmarksList: BuildingInst[] = [];
+  private announcedLandmarks = new Set<BuildingInst>();
+  private zoneName: string | null = null;
+  private calloutQueue: string[] = [];
+  private calloutBusyUntil = 0;
 
   private readonly pos = new Vector3();
   private readonly prevPos = new Vector3();
@@ -183,6 +197,7 @@ export class Game {
     this.unloadWorld();
     this.stage = stage;
     this.city = new City(stage);
+    this.landmarksList = this.city.buildings.filter((b) => b.kind === 'landmark');
     this.chart = buildChart(this.city);
     this.score = newScore(this.chart.notes.length);
     this.windows = makeWindows(stage.timingScale);
@@ -274,6 +289,14 @@ export class Game {
     this.lastBeatIndex = -1;
     this.score = newScore(this.chart.notes.length);
     for (const n of this.chart.notes) noteState.delete(n);
+
+    this.zoneName = null;
+    this.announcedLandmarks.clear();
+    this.calloutQueue.length = 0;
+    this.calloutBusyUntil = 0;
+    this.hud.place = null;
+    this.hud.calloutTitle = null;
+    this.hud.calloutAt = -99;
 
     const seg0 = this.chart.segments[0];
     const d = new Vector3(seg0.to.x - seg0.from.x, 0, seg0.to.z - seg0.from.z).normalize();
@@ -445,6 +468,7 @@ export class Game {
     }
 
     this.updateMotion(dt, songTime);
+    if (this.phase === 'playing') this.updateLocationAwareness();
     this.updateHud(songTime);
 
     this.chase.update(
@@ -523,6 +547,34 @@ export class Game {
     if (b !== this.lastBeatIndex) {
       this.lastBeatIndex = b;
       this.chase.beat(b % 4 === 0 ? 1 : 0.45);
+    }
+  }
+
+  /**
+   * 위치 인지: 지금 지나는 구역(아파트 단지 등) 이름을 HUD 에 계속 띄우고,
+   * 주요 랜드마크에 처음 가까워지는 순간 이름 배너를 한 번 큐에 넣는다.
+   */
+  private updateLocationAwareness(): void {
+    const zone = this.city.zoneAt(this.pos.x, this.pos.z);
+    if (zone !== this.zoneName) {
+      this.zoneName = zone;
+      this.hud.place = zone;
+    }
+
+    for (const b of this.landmarksList) {
+      if (this.announcedLandmarks.has(b)) continue;
+      const radius = Math.max(b.w, b.d) * 0.7 + 260;
+      const dx = b.x - this.pos.x;
+      const dz = b.z - this.pos.z;
+      if (dx * dx + dz * dz > radius * radius) continue;
+      this.announcedLandmarks.add(b);
+      if (b.name) this.calloutQueue.push(b.name);
+    }
+
+    if (this.elapsed >= this.calloutBusyUntil && this.calloutQueue.length > 0) {
+      this.hud.calloutTitle = this.calloutQueue.shift()!;
+      this.hud.calloutAt = this.elapsed;
+      this.calloutBusyUntil = this.elapsed + 3.2;
     }
   }
 

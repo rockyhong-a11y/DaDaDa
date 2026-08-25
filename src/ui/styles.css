@@ -466,6 +466,13 @@ kbd {
   color: var(--muted);
 }
 
+.hud__stage small.place {
+  margin-top: 2px;
+  color: var(--cyan);
+  letter-spacing: 0.02em;
+  font-weight: 600;
+}
+
 .hud__score {
   text-align: center;
 }
@@ -638,6 +645,65 @@ kbd {
   100% {
     opacity: 0;
     transform: translate(-50%, -62%) scale(0.98);
+  }
+}
+
+/* 주요 랜드마크 근접 배너 */
+
+.hud__callout {
+  position: absolute;
+  left: 50%;
+  top: 112px;
+  transform: translate(-50%, -8px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 8px 20px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 180, 87, 0.35);
+  background: linear-gradient(180deg, rgba(20, 16, 8, 0.78), rgba(10, 8, 4, 0.6));
+  text-align: center;
+  opacity: 0;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.hud__callout .tag {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.26em;
+  color: var(--amber);
+}
+
+.hud__callout b {
+  font-size: clamp(16px, 2.6vw, 21px);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  text-shadow: 0 0 18px rgba(255, 180, 87, 0.45);
+}
+
+.hud__callout.show {
+  animation: callout-pop 3.2s cubic-bezier(0.2, 1, 0.35, 1) both;
+}
+
+@keyframes callout-pop {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -8px);
+  }
+  10% {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+  82% {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -6px);
   }
 }
 
@@ -1137,6 +1203,16 @@ input[type='password'] {
   }
   .hud__alt {
     top: 48px;
+  }
+  .hud__callout {
+    top: 80px;
+    padding: 5px 14px;
+  }
+  .hud__callout .tag {
+    font-size: 9px;
+  }
+  .hud__callout b {
+    font-size: 15px;
   }
   .lane {
     bottom: calc(46px + env(safe-area-inset-bottom));

@@ -32,6 +32,9 @@ export class Hud {
   private readonly judgeWrap: HTMLElement;
   private readonly judgeEl: HTMLElement;
   private readonly judgeOff: HTMLElement;
+  private readonly placeEl: HTMLElement;
+  private readonly calloutWrap: HTMLElement;
+  private readonly calloutEl: HTMLElement;
   private readonly lane: HTMLElement;
   private readonly hitline: HTMLElement;
   private readonly progBar: HTMLElement;
@@ -44,13 +47,15 @@ export class Hud {
   private lastCombo = 0;
   private lastJudgeAt = -99;
   private lastBeat = -1;
+  private lastCalloutAt = -99;
+  private lastPlace: string | null = null;
 
   constructor(stage: StageDef) {
     this.el = document.createElement('div');
     this.el.className = 'hud';
     this.el.innerHTML = `
       <div class="hud__top">
-        <div class="hud__stage">STAGE ${stage.index + 1} · ${stage.name}<small>${stage.district} · ${stage.bpm} BPM</small></div>
+        <div class="hud__stage">STAGE ${stage.index + 1} · ${stage.name}<small>${stage.district} · ${stage.bpm} BPM</small><small class="place" hidden></small></div>
         <div class="hud__score"><b>0</b><span>ACC 100.00%</span></div>
         <div class="hud__combo"><b>0</b><span>COMBO</span></div>
       </div>
@@ -61,6 +66,7 @@ export class Hud {
         <div class="hud__alt-row spd"><b>0</b><em>km/h</em></div>
       </div>
       <div class="hud__judge"><b>PERFECT</b><span>+0 ms</span></div>
+      <div class="hud__callout"><span class="tag">랜드마크</span><b></b></div>
       <div class="lane">
         <div class="lane__track"></div>
         <div class="lane__hitline"></div>
@@ -82,6 +88,9 @@ export class Hud {
     this.judgeWrap = q('.hud__judge');
     this.judgeEl = q('.hud__judge b');
     this.judgeOff = q('.hud__judge span');
+    this.placeEl = q('.hud__stage small.place');
+    this.calloutWrap = q('.hud__callout');
+    this.calloutEl = q('.hud__callout b');
     this.lane = q('.lane');
     this.hitline = q('.lane__hitline');
     this.progBar = q('.hud__progress .bar i');
@@ -133,6 +142,20 @@ export class Hud {
       this.judgeWrap.classList.remove('show');
       void this.judgeWrap.offsetWidth;
       this.judgeWrap.classList.add('show');
+    }
+
+    if (s.place !== this.lastPlace) {
+      this.lastPlace = s.place;
+      this.placeEl.hidden = !s.place;
+      if (s.place) this.placeEl.textContent = `▸ ${s.place}`;
+    }
+
+    if (s.calloutTitle && s.calloutAt !== this.lastCalloutAt) {
+      this.lastCalloutAt = s.calloutAt;
+      this.calloutEl.textContent = s.calloutTitle;
+      this.calloutWrap.classList.remove('show');
+      void this.calloutWrap.offsetWidth;
+      this.calloutWrap.classList.add('show');
     }
 
     if (beatIndex !== this.lastBeat) {

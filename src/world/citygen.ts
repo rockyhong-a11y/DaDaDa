@@ -45,6 +45,16 @@ export interface Hill {
   falloff: number;
 }
 
+/** 이름 붙은 구역(아파트 단지·상권·공원 등). 플레이어가 지금 어디를 지나는지 보여주는 데 쓴다. */
+export interface NamedZone {
+  x: number;
+  z: number;
+  hw: number;
+  hd: number;
+  rot: number;
+  name: string;
+}
+
 const FLOOR_H = 3.1;
 
 export class City {
@@ -54,6 +64,8 @@ export class City {
   readonly waters: Patch[] = [];
   readonly parks: Patch[] = [];
   readonly hills: Hill[] = [];
+  /** 이름 붙은 구역 목록 (인게임 위치 표시용) */
+  readonly zones: NamedZone[] = [];
   /** 실측 OSM 발자국을 사용했는지 여부 */
   usedOsm = false;
   /** 100m 격자 공간 인덱스 (건물 인덱스 목록) */
@@ -77,6 +89,31 @@ export class City {
     else this.placePatchesOnly();
     this.fillBackground();
     this.buildIndex();
+    this.buildZones();
+  }
+
+  /** 이름이 있는 블록을 전부 구역으로 등록한다 (아파트 단지, 상권, 공원 …). */
+  private buildZones(): void {
+    for (const t of this.stage.blocks) {
+      const b = this.toBlock(t);
+      if (!b.name) continue;
+      const p = this.proj.toLocal(b.center.lat, b.center.lon);
+      this.zones.push({ x: p.x, z: p.z, hw: b.width / 2, hd: b.depth / 2, rot: b.rot * DEG2RAD, name: b.name });
+    }
+  }
+
+  /** 좌표가 속한 구역 이름. 여러 구역이 겹치면 먼저 등록된(=더 특정된) 쪽을 우선한다. */
+  zoneAt(x: number, z: number): string | null {
+    for (const zn of this.zones) {
+      const c = Math.cos(zn.rot);
+      const s = Math.sin(zn.rot);
+      const dx = x - zn.x;
+      const dz = z - zn.z;
+      const u = dx * s - dz * c;
+      const v = dx * c + dz * s;
+      if (Math.abs(u) <= zn.hw && Math.abs(v) <= zn.hd) return zn.name;
+    }
+    return null;
   }
 
   /** 지형 표고(m). 가우시안 형태의 구릉을 합성한다. */
