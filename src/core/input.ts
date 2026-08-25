@@ -2,6 +2,9 @@ export interface PressEvent {
   /** 입력 시각 (AudioContext 기준 초) */
   at: number;
   source: 'key' | 'pointer';
+  /** 화면 좌표(px). 포인터 입력일 때만 있다 — 탭한 자리에 이펙트를 띄우는 데 쓴다. */
+  x?: number;
+  y?: number;
 }
 
 /**
@@ -43,8 +46,8 @@ export class InputManager {
     return this.audioNow() - (delay > 0.25 ? 0 : delay);
   }
 
-  private emit(at: number, source: PressEvent['source']): void {
-    for (const fn of this.listeners) fn({ at, source });
+  private emit(at: number, source: PressEvent['source'], x?: number, y?: number): void {
+    for (const fn of this.listeners) fn({ at, source, x, y });
   }
 
   private readonly onKeyDown = (e: KeyboardEvent): void => {
@@ -68,7 +71,7 @@ export class InputManager {
     // UI 버튼·입력 위의 터치는 게임 입력으로 치지 않는다
     if (target?.closest('button, a, input, label, select, textarea, .ui-panel')) return;
     this.activePointers.add(e.pointerId);
-    this.emit(this.toAudioTime(e.timeStamp), 'pointer');
+    this.emit(this.toAudioTime(e.timeStamp), 'pointer', e.clientX, e.clientY);
   };
 
   private readonly onPointerUp = (e: PointerEvent): void => {

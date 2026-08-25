@@ -25,9 +25,15 @@ export class NoteMarkers {
   private readonly rings: { mesh: Mesh; mat: MeshBasicMaterial }[] = [];
   private readonly airs: { mesh: Mesh; mat: MeshBasicMaterial }[] = [];
   private readonly burst: Burst;
-  /** 홀드/연타 진행 중 플레이어에게 붙는 링. 위치가 아니라 상태를 보여 준다. */
-  private readonly actionMesh: Mesh;
-  private readonly actionMat: MeshBasicMaterial;
+  /**
+   * 홀드/연타 진행 중 플레이어에게 붙는 링. 위치가 아니라 상태를 보여 준다.
+   * 색만 다르면 얼핏 봐서 구분이 안 되므로 모양 자체를 다르게 만든다 —
+   * 홀드는 매끈한 원, 연타는 각진 다이아몬드.
+   */
+  private readonly holdMesh: Mesh;
+  private readonly holdMat: MeshBasicMaterial;
+  private readonly mashMesh: Mesh;
+  private readonly mashMat: MeshBasicMaterial;
 
   constructor(ringCount = 6, airCount = 14) {
     const ringGeo = new TorusGeometry(1, 0.055, 8, 40);
@@ -61,47 +67,94 @@ export class NoteMarkers {
     this.burst = new Burst();
     this.group.add(this.burst.points);
 
-    const actionGeo = new TorusGeometry(1, 0.09, 10, 48);
-    this.actionMat = new MeshBasicMaterial({
+    // 홀드 = 매끈한 원형 링
+    const holdGeo = new TorusGeometry(1, 0.09, 10, 48);
+    this.holdMat = new MeshBasicMaterial({
       transparent: true,
       depthWrite: false,
       blending: AdditiveBlending,
     });
-    this.actionMesh = new Mesh(actionGeo, this.actionMat);
-    this.actionMesh.visible = false;
-    this.actionMesh.frustumCulled = false;
-    this.group.add(this.actionMesh);
+    this.holdMesh = new Mesh(holdGeo, this.holdMat);
+    this.holdMesh.visible = false;
+    this.holdMesh.frustumCulled = false;
+    this.group.add(this.holdMesh);
+
+    // 연타 = 4각 단면의 각진 다이아몬드 링 (45도 회전)
+    const mashGeo = new TorusGeometry(1, 0.13, 4, 4);
+    this.mashMat = new MeshBasicMaterial({
+      transparent: true,
+      depthWrite: false,
+      blending: AdditiveBlending,
+    });
+    this.mashMesh = new Mesh(mashGeo, this.mashMat);
+    this.mashMesh.rotation.z = Math.PI / 4;
+    this.mashMesh.visible = false;
+    this.mashMesh.frustumCulled = false;
+    this.group.add(this.mashMesh);
   }
 
   hideAll(): void {
     for (const r of this.rings) r.mesh.visible = false;
     for (const a of this.airs) a.mesh.visible = false;
-    this.actionMesh.visible = false;
+    this.holdMesh.visible = false;
+    this.mashMesh.visible = false;
   }
 
-  /** 홀드 진행 중: 채워질수록 밝아지고 살짝 오므라드는 초록 링을 플레이어에 붙인다. */
+  /** 홀드 진행 중: 채워질수록 밝아지고 살짝 오므라드는 초록 원형 링을 플레이어에 붙인다. */
   showHold(pos: Vector3, camera: Camera, progress: number): void {
-    this.actionMesh.visible = true;
-    this.actionMesh.position.copy(pos);
-    this.actionMesh.lookAt(camera.position);
-    this.actionMesh.scale.setScalar(3.4 - progress * 0.7);
-    this.actionMat.color.setHex(0x6bff9e);
-    this.actionMat.opacity = 0.45 + progress * 0.5;
+    this.mashMesh.visible = false;
+    this.holdMesh.visible = true;
+    this.holdMesh.position.copy(pos);
+    this.holdMesh.lookAt(camera.position);
+    this.holdMesh.rotation.z = 0;
+    this.holdMesh.scale.setScalar(3.4 - progress * 0.7);
+    this.holdMat.color.setHex(0x6bff9e);
+    this.holdMat.opacity = 0.45 + progress * 0.5;
   }
 
-  /** 연타 진행 중: 탭마다 떠는 듯 흔들리는 주황 링. */
+  /** 연타 진행 중: 탭마다 떠는 듯 흔들리는 주황 다이아몬드 링. */
   showMash(pos: Vector3, camera: Camera, time: number, progress: number): void {
-    this.actionMesh.visible = true;
-    this.actionMesh.position.copy(pos);
-    this.actionMesh.lookAt(camera.position);
+    this.holdMesh.visible = false;
+    this.mashMesh.visible = true;
+    this.mashMesh.position.copy(pos);
+    this.mashMesh.lookAt(camera.position);
     const pulse = 1 + Math.sin(time * 26) * 0.09 * (1 - progress * 0.5);
-    this.actionMesh.scale.setScalar((2.6 + progress * 1.3) * pulse);
-    this.actionMat.color.setHex(0xffb457);
-    this.actionMat.opacity = 0.55 + progress * 0.35;
+    this.mashMesh.scale.setScalar((2.6 + progress * 1.3) * pulse);
+    this.mashMesh.rotation.z = Math.PI / 4 + Math.sin(time * 26) * 0.12;
+    this.mashMat.color.setHex(0xffb457);
+    this.mashMat.opacity = 0.55 + progress * 0.35;
+  }
+
+  /**
+   * 아직 도달하지 않은 홀드 노트 예고. k=0(멀리 남음)~1(곧 도달)로 다가올수록
+   * 오므라들며 밝아져 "곧 누르고 있어야 한다"는 감각을 준다.
+   */
+  showHoldPreview(pos: Vector3, camera: Camera, k: number): void {
+    this.mashMesh.visible = false;
+    this.holdMesh.visible = true;
+    this.holdMesh.position.copy(pos);
+    this.holdMesh.lookAt(camera.position);
+    this.holdMesh.rotation.z = 0;
+    this.holdMesh.scale.setScalar(7.5 - k * 4.1);
+    this.holdMat.color.setHex(0x6bff9e);
+    this.holdMat.opacity = 0.1 + k * 0.32;
+  }
+
+  /** 아직 도달하지 않은 연타 노트 예고: 흐릿한 다이아몬드가 다가올수록 오므라들며 밝아진다. */
+  showMashPreview(pos: Vector3, camera: Camera, k: number): void {
+    this.holdMesh.visible = false;
+    this.mashMesh.visible = true;
+    this.mashMesh.position.copy(pos);
+    this.mashMesh.lookAt(camera.position);
+    this.mashMesh.rotation.z = Math.PI / 4;
+    this.mashMesh.scale.setScalar(7.5 - k * 4.1);
+    this.mashMat.color.setHex(0xffb457);
+    this.mashMat.opacity = 0.1 + k * 0.32;
   }
 
   hideAction(): void {
-    this.actionMesh.visible = false;
+    this.holdMesh.visible = false;
+    this.mashMesh.visible = false;
   }
 
   /**
@@ -163,8 +216,10 @@ export class NoteMarkers {
       a.mat.dispose();
     }
     this.burst.dispose();
-    this.actionMesh.geometry.dispose();
-    this.actionMat.dispose();
+    this.holdMesh.geometry.dispose();
+    this.holdMat.dispose();
+    this.mashMesh.geometry.dispose();
+    this.mashMat.dispose();
   }
 }
 
@@ -173,7 +228,7 @@ class Burst {
   readonly points: Points;
   private readonly geo: BufferGeometry;
   private readonly mat: ShaderMaterial;
-  private readonly max = 260;
+  private readonly max = 520;
   private cursor = 0;
   private readonly pos: Float32Array;
   private readonly vel: Float32Array;
@@ -204,7 +259,7 @@ class Burst {
           vColor = aColor;
           vec4 mv = modelViewMatrix * vec4(position, 1.0);
           gl_Position = projectionMatrix * mv;
-          gl_PointSize = clamp(420.0 / max(-mv.z, 1.0), 2.0, 26.0) * (0.4 + aLife);
+          gl_PointSize = clamp(560.0 / max(-mv.z, 1.0), 2.5, 38.0) * (0.5 + aLife * 0.7);
         }
       `,
       fragmentShader: /* glsl */ `
@@ -215,7 +270,9 @@ class Burst {
           if (vLife <= 0.001) discard;
           vec2 d = gl_PointCoord - 0.5;
           float a = 1.0 - smoothstep(0.1, 0.5, length(d));
-          gl_FragColor = vec4(vColor, a * vLife * 0.4);
+          // 터지는 순간(수명 초반)은 하얗게 확 밝았다가 색이 드러나며 잦아든다
+          vec3 col = mix(vColor, vec3(1.0), smoothstep(0.55, 1.0, vLife) * 0.6);
+          gl_FragColor = vec4(col, a * vLife * 0.65);
         }
       `,
     });
@@ -225,23 +282,42 @@ class Burst {
 
   emit(p: Vector3, color: number, power: number): void {
     const c = new Color(color);
-    const n = Math.round(6 + power * 14);
-    for (let i = 0; i < n; i++) {
+    // 팡 터지는 느낌을 위해 두 겹으로 쏜다: 빠르게 퍼지는 바깥 스파크 + 느리게 흩어지는 안쪽 잔불
+    const nBurst = Math.round(16 + power * 34);
+    for (let i = 0; i < nBurst; i++) {
       const k = this.cursor;
       this.cursor = (this.cursor + 1) % this.max;
       this.pos[k * 3] = p.x;
       this.pos[k * 3 + 1] = p.y;
       this.pos[k * 3 + 2] = p.z;
-      const sp = (2 + Math.random() * 9) * (0.6 + power);
+      const sp = (4 + Math.random() * 15) * (0.7 + power);
       const th = Math.random() * Math.PI * 2;
       const ph = Math.acos(Math.random() * 2 - 1);
       this.vel[k * 3] = Math.sin(ph) * Math.cos(th) * sp;
-      this.vel[k * 3 + 1] = Math.cos(ph) * sp * 0.7 + 2;
+      this.vel[k * 3 + 1] = Math.cos(ph) * sp * 0.7 + 2.5;
       this.vel[k * 3 + 2] = Math.sin(ph) * Math.sin(th) * sp;
       this.life[k] = 1;
       this.col[k * 3] = c.r;
       this.col[k * 3 + 1] = c.g;
       this.col[k * 3 + 2] = c.b;
+    }
+    const nEmber = Math.round(6 + power * 14);
+    for (let i = 0; i < nEmber; i++) {
+      const k = this.cursor;
+      this.cursor = (this.cursor + 1) % this.max;
+      this.pos[k * 3] = p.x;
+      this.pos[k * 3 + 1] = p.y;
+      this.pos[k * 3 + 2] = p.z;
+      const sp = (1 + Math.random() * 3.5) * (0.6 + power);
+      const th = Math.random() * Math.PI * 2;
+      const ph = Math.acos(Math.random() * 2 - 1);
+      this.vel[k * 3] = Math.sin(ph) * Math.cos(th) * sp;
+      this.vel[k * 3 + 1] = Math.cos(ph) * sp * 0.5 + 1.2;
+      this.vel[k * 3 + 2] = Math.sin(ph) * Math.sin(th) * sp;
+      this.life[k] = 1;
+      this.col[k * 3] = Math.min(1, c.r + 0.25);
+      this.col[k * 3 + 1] = Math.min(1, c.g + 0.25);
+      this.col[k * 3 + 2] = Math.min(1, c.b + 0.25);
     }
   }
 

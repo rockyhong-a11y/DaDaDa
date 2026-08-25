@@ -56,6 +56,7 @@ export class Hud {
   private lastBeat = -1;
   private lastCalloutAt = -99;
   private lastPlace: string | null = null;
+  private lastTapRippleId = 0;
 
   constructor(stage: StageDef) {
     this.el = document.createElement('div');
@@ -120,6 +121,28 @@ export class Hud {
     this.totalEl = q('.hud__progress .d');
     this.countEl = q('.hud__countdown');
     this.heatBar = q('.hud__heat .bar i');
+  }
+
+  /**
+   * 탭 지점에 순간 이펙트를 띄운다. 키보드 입력(x/y 없음)일 때는 탭할 화면
+   * 좌표가 없으므로 판정선 위치로 대체한다.
+   */
+  private spawnTapRipple(x: number | null, y: number | null): void {
+    let px = x;
+    let py = y;
+    if (px == null || py == null) {
+      const r = this.hitline.getBoundingClientRect();
+      px = r.left + r.width / 2;
+      py = r.top + r.height / 2;
+    }
+    const el = document.createElement('div');
+    el.className = 'tap-ripple';
+    el.style.left = `${px}px`;
+    el.style.top = `${py}px`;
+    this.el.appendChild(el);
+    const cleanup = (): void => el.remove();
+    el.addEventListener('animationend', cleanup, { once: true });
+    setTimeout(cleanup, 700);
   }
 
   private noteEl(i: number): HTMLElement {
@@ -191,6 +214,24 @@ export class Hud {
       this.calloutWrap.classList.remove('show', 'show-area');
       void this.calloutWrap.offsetWidth;
       this.calloutWrap.classList.add(s.calloutKind === 'area' ? 'show-area' : 'show');
+    }
+
+    // 랜드마크 배너는 화면 중앙이 아니라 실제 건물 위 화면 좌표를 매 프레임 따라간다.
+    // 구역(area) 배너는 건물이 아니라 지역 전체를 가리키는 것이라 고정 위치를 유지한다.
+    if (s.calloutKind === 'landmark') {
+      this.calloutWrap.classList.add('world');
+      this.calloutWrap.style.left = `${(s.calloutScreenX * 100).toFixed(2)}%`;
+      this.calloutWrap.style.visibility = s.calloutWorldVisible ? '' : 'hidden';
+      this.calloutWrap.style.setProperty('--wy', `${(s.calloutScreenY * 100).toFixed(2)}%`);
+    } else {
+      this.calloutWrap.classList.remove('world');
+      this.calloutWrap.style.left = '';
+      this.calloutWrap.style.visibility = '';
+    }
+
+    if (s.tapRippleId !== this.lastTapRippleId) {
+      this.lastTapRippleId = s.tapRippleId;
+      this.spawnTapRipple(s.tapRippleX, s.tapRippleY);
     }
 
     if (beatIndex !== this.lastBeat) {

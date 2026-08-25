@@ -57,6 +57,10 @@ export interface HudState {
   calloutTitle: string | null;
   calloutSubtitle: string;
   calloutAt: number;
+  /** 랜드마크 배너의 화면상 위치(0~1). 건물 위에 투영해 붙일 때 쓴다. area 배너는 안 쓴다. */
+  calloutScreenX: number;
+  calloutScreenY: number;
+  calloutWorldVisible: boolean;
   /** 홀드 노트 진행 상태 */
   holdActive: boolean;
   holdProgress: number;
@@ -64,6 +68,13 @@ export interface HudState {
   mashActive: boolean;
   mashCount: number;
   mashTarget: number;
+  /** 다음 홀드/연타 예고 (시작 전 카운트다운 표시용) */
+  nextActionKind: 'hold' | 'mash' | null;
+  nextActionRemain: number;
+  /** 탭할 때마다 올라가는 카운터. 화면 좌표가 있으면(포인터) 그 자리에, 없으면(키보드) 판정선에 리플을 띄운다. */
+  tapRippleId: number;
+  tapRippleX: number | null;
+  tapRippleY: number | null;
 }
 
 export interface StageResult {
@@ -104,11 +115,19 @@ export class Game {
     calloutTitle: null,
     calloutSubtitle: '',
     calloutAt: -99,
+    calloutScreenX: 0.5,
+    calloutScreenY: 0.2,
+    calloutWorldVisible: false,
     holdActive: false,
     holdProgress: 0,
     mashActive: false,
     mashCount: 0,
     mashTarget: 1,
+    nextActionKind: null,
+    nextActionRemain: 0,
+    tapRippleId: 0,
+    tapRippleX: null,
+    tapRippleY: null,
   };
 
   phase: Phase = 'loading';
@@ -163,8 +182,11 @@ export class Game {
   private announcedLandmarks = new Set<BuildingInst>();
   private announcedZones = new Set<string>();
   private zoneName: string | null = null;
-  private calloutQueue: { kind: 'landmark' | 'area'; title: string; subtitle: string }[] = [];
+  private calloutQueue: { kind: 'landmark' | 'area'; title: string; subtitle: string; pos: Vector3 | null }[] = [];
   private calloutBusyUntil = 0;
+  /** 지금 표시 중인 랜드마크 배너가 붙어야 할 3D 좌표 (건물 옥상 위) */
+  private activeCalloutPos: Vector3 | null = null;
+  private readonly calloutNdc = new Vector3();
 
   /** 지금 진행 중인 홀드 노트 (없으면 null) */
   private activeHold: Note | null = null;
@@ -324,11 +346,13 @@ export class Game {
     this.announcedZones.clear();
     this.calloutQueue.length = 0;
     this.calloutBusyUntil = 0;
+    this.activeCalloutPos = null;
     this.hud.place = null;
     this.hud.calloutKind = null;
     this.hud.calloutTitle = null;
     this.hud.calloutSubtitle = '';
     this.hud.calloutAt = -99;
+    this.hud.calloutWorldVisible = false;
 
     this.activeHold = null;
     this.holdHeldTime = 0;
@@ -341,6 +365,11 @@ export class Game {
     this.hud.mashActive = false;
     this.hud.mashCount = 0;
     this.hud.mashTarget = 1;
+    this.hud.nextActionKind = null;
+    this.hud.nextActionRemain = 0;
+    this.hud.tapRippleId = 0;
+    this.hud.tapRippleX = null;
+    this.hud.tapRippleY = null;
 
     const seg0 = this.chart.segments[0];
     const d = new Vector3(seg0.to.x - seg0.from.x, 0, seg0.to.z - seg0.from.z).normalize();
@@ -422,6 +451,9 @@ export class Game {
 
   private readonly handlePress = (e: PressEvent): void => {
     if (this.phase !== 'playing') return;
+    this.hud.tapRippleId++;
+    this.hud.tapRippleX = e.x ?? null;
+    this.hud.tapRippleY = e.y ?? null;
     const songTime = e.at - this.conductor.toAudioTime(0);
     this.judgePress(songTime);
   };
@@ -524,7 +556,7 @@ export class Game {
     }
 
     this.updateMotion(dt, songTime);
-    if (this.phase === 'playing') this.updateLocationAwareness();
+    if (this.phase === 'playing') this.updateLocationAwareness(songTime);
     this.updateHud(songTime);
 
     this.chase.update(
@@ -690,14 +722,14 @@ export class Game {
    * 랜드마크는 큰 건물일수록 훨씬 멀리서부터 알아볼 수 있다는 점을 반영해
    * 트리거 반경을 높이에 비례해 키운다 — 555m 롯데월드타워는 1km 밖에서도 뜬다.
    */
-  private updateLocationAwareness(): void {
+  private updateLocationAwareness(songTime: number): void {
     const zone = this.city.zoneAt(this.pos.x, this.pos.z);
     if (zone !== this.zoneName) {
       this.zoneName = zone;
       this.hud.place = zone;
       if (zone && !this.announcedZones.has(zone)) {
         this.announcedZones.add(zone);
-        this.calloutQueue.push({ kind: 'area', title: zone, subtitle: '지나는 구역' });
+        this.calloutQueue.push({ kind: 'area', title: zone, subtitle: '지나는 구역', pos: null });
       }
     }
 
@@ -709,7 +741,9 @@ export class Game {
       if (dx * dx + dz * dz > radius * radius) continue;
       this.announcedLandmarks.add(b);
       const subtitle = b.height >= 1 ? `${Math.round(b.height)}m · ${b.floors}층` : '랜드마크';
-      this.calloutQueue.push({ kind: 'landmark', title: b.name, subtitle });
+      // 옥상보다 살짝 위에 이름표를 띄워 "이 건물이다" 라는 게 분명하게 보이게 한다
+      const pos = new Vector3(b.x, b.base + b.height + 14, b.z);
+      this.calloutQueue.push({ kind: 'landmark', title: b.name, subtitle, pos });
     }
 
     if (this.elapsed >= this.calloutBusyUntil && this.calloutQueue.length > 0) {
@@ -718,7 +752,52 @@ export class Game {
       this.hud.calloutTitle = c.title;
       this.hud.calloutSubtitle = c.subtitle;
       this.hud.calloutAt = this.elapsed;
+      this.activeCalloutPos = c.pos;
       this.calloutBusyUntil = this.elapsed + (c.kind === 'landmark' ? 4.0 : 2.4);
+    }
+
+    if (this.activeCalloutPos) {
+      if (this.elapsed >= this.calloutBusyUntil) {
+        this.activeCalloutPos = null;
+        this.hud.calloutWorldVisible = false;
+      } else {
+        this.calloutNdc.copy(this.activeCalloutPos).project(this.chase.camera);
+        this.hud.calloutScreenX = (this.calloutNdc.x + 1) / 2;
+        this.hud.calloutScreenY = (1 - this.calloutNdc.y) / 2;
+        this.hud.calloutWorldVisible =
+          this.calloutNdc.z < 1 &&
+          this.calloutNdc.x > -1.1 &&
+          this.calloutNdc.x < 1.1 &&
+          this.calloutNdc.y > -1.1 &&
+          this.calloutNdc.y < 1.1;
+      }
+    }
+
+    // 다음 홀드/연타 예고 (아직 활성화되지 않은 것 중 가장 가까운 것)
+    if (!this.activeHold && !this.activeMash) {
+      const notes = this.chart.notes;
+      let found: Note | null = null;
+      for (let i = this.actionCursor; i < notes.length; i++) {
+        const n = notes[i];
+        if (noteState.has(n)) continue;
+        if (n.kind === 'hold' || n.kind === 'mash') {
+          found = n;
+          break;
+        }
+      }
+      if (found) {
+        const remain = found.time - songTime;
+        if (remain > 0 && remain < 1.8) {
+          this.hud.nextActionKind = found.kind as 'hold' | 'mash';
+          this.hud.nextActionRemain = remain;
+        } else {
+          this.hud.nextActionKind = null;
+        }
+      } else {
+        this.hud.nextActionKind = null;
+      }
+    } else {
+      this.hud.nextActionKind = null;
     }
   }
 
@@ -886,6 +965,10 @@ export class Game {
     if (this.hud.holdActive) this.markers.showHold(this.pos, this.chase.camera, this.hud.holdProgress);
     else if (this.hud.mashActive) {
       this.markers.showMash(this.pos, this.chase.camera, this.elapsed, this.hud.mashCount / this.hud.mashTarget);
+    } else if (this.hud.nextActionKind) {
+      const k = 1 - Math.max(0, Math.min(1, this.hud.nextActionRemain / 1.8));
+      if (this.hud.nextActionKind === 'hold') this.markers.showHoldPreview(this.pos, this.chase.camera, k);
+      else this.markers.showMashPreview(this.pos, this.chase.camera, k);
     } else this.markers.hideAction();
   }
 
