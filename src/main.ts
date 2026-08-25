@@ -48,19 +48,43 @@ if (debugEl) {
 applySettings(store.settings);
 renderer.setQuality(store.settings.quality);
 renderer.resize();
-input.attach(canvas);
+input.attach();
+// 첫 사용자 제스처에서 오디오 잠금 해제 (모바일 브라우저 정책)
+for (const ev of ['pointerdown', 'keydown', 'touchend'] as const) {
+  window.addEventListener(ev, () => engine.unlock(), { once: true, passive: true });
+}
 input.onPause(() => {
   if (game.phase === 'playing') openPause();
   else if (game.phase === 'paused') closePauseAndResume();
 });
 
-window.addEventListener('resize', () => {
+function handleResize(): void {
   renderer.resize();
   game.resize();
-});
+}
+window.addEventListener('resize', handleResize);
+window.addEventListener('orientationchange', () => setTimeout(handleResize, 250));
+// 모바일 브라우저 툴바가 접히고 펴질 때도 캔버스 크기가 바뀐다
+window.visualViewport?.addEventListener('resize', handleResize);
 window.addEventListener('visibilitychange', () => {
   if (document.hidden && game.phase === 'playing') openPause();
 });
+
+/** 화면 아래에 잠깐 떴다 사라지는 안내 */
+function toast(message: string, ms = 3200): void {
+  let el = document.getElementById('toast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'toast';
+    uiRoot.appendChild(el);
+  }
+  el.textContent = message;
+  el.classList.remove('show');
+  void el.offsetWidth;
+  el.classList.add('show');
+  window.clearTimeout(Number(el.dataset.timer));
+  el.dataset.timer = String(window.setTimeout(() => el?.classList.remove('show'), ms));
+}
 
 function applySettings(s: Settings): void {
   engine.setMusicVolume(s.music);
@@ -94,7 +118,7 @@ function showTitle(): void {
   setOverlay(
     titleScreen(
       () => {
-        void engine.resume();
+        engine.unlock();
         showSelect();
       },
       () => showSettings(showTitle),
@@ -114,7 +138,13 @@ function showSettings(back: () => void): void {
 }
 
 function startStage(stage: StageDef): void {
-  void engine.resume();
+  engine.unlock();
+  perfWindow = 0;
+  perfFrames = 0;
+  perfCooldown = 6;
+  if (isCoarsePointer() && window.innerHeight > window.innerWidth) {
+    toast('가로로 돌리면 시야가 넓어집니다', 4200);
+  }
   setOverlay(loadingScreen(stage));
   // 로딩 화면이 한 프레임 그려진 뒤 무거운 생성 작업을 시작한다
   requestAnimationFrame(() => {
@@ -186,6 +216,46 @@ game.onFinish = (r: StageResult) => {
 
 // ---------------------------------------------------------------- 메인 루프
 
+// --- 성능 자동 조정 ---
+let perfWindow = 0;
+let perfFrames = 0;
+let perfCooldown = 0;
+
+function isCoarsePointer(): boolean {
+  return typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+}
+
+/**
+ * 프레임이 계속 모자라면 화질을 한 단계 낮춘다. 올리지는 않는다.
+ * 사용자가 설정에서 화질을 직접 고르면 이 자동 조정은 꺼진다.
+ */
+function monitorPerformance(raw: number): void {
+  if (!store.settings.autoQuality || game.phase !== 'playing') {
+    perfWindow = 0;
+    perfFrames = 0;
+    return;
+  }
+  if (perfCooldown > 0) {
+    perfCooldown -= raw;
+    return;
+  }
+  perfWindow += raw;
+  perfFrames++;
+  if (perfWindow < 4) return;
+  const fps = perfFrames / perfWindow;
+  perfWindow = 0;
+  perfFrames = 0;
+  const q = store.settings.quality;
+  let next: Settings['quality'] | null = null;
+  if (fps < 26 && q === 'high') next = 'medium';
+  else if (fps < 21 && q === 'medium') next = 'low';
+  if (!next) return;
+  store.updateSettings({ quality: next });
+  renderer.setQuality(next);
+  perfCooldown = 10;
+  toast(`프레임이 낮아 화질을 '${next === 'medium' ? '보통' : '낮음'}' 으로 낮췄습니다 (설정에서 변경 가능)`);
+}
+
 function frame(now: number): void {
   const raw = (now - lastTime) / 1000;
   lastTime = now;
@@ -193,6 +263,7 @@ function frame(now: number): void {
   // 그러지 않으면 프레임이 떨어질 때 카메라가 영원히 따라붙지 못한다.
   const dt = Math.min(0.05, raw);
   game.update(dt, Math.min(0.25, raw));
+  monitorPerformance(raw);
 
   if (attract) attractCamera(dt);
   if (hud) {
@@ -269,7 +340,7 @@ function boot(): void {
         setOverlay(null);
         hud = new Hud(target);
         uiRoot.appendChild(hud.el);
-        void engine.resume();
+        engine.unlock();
         game.start();
       } else {
         // 타이틀 배경으로 여의도 스카이라인을 띄운다

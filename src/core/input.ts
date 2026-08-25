@@ -59,25 +59,30 @@ export class InputManager {
 
   private readonly onPointerDown = (e: PointerEvent): void => {
     const target = e.target as HTMLElement | null;
-    // UI 버튼 위 클릭은 게임 입력으로 치지 않는다
-    if (target?.closest('button, a, input, .ui-panel')) return;
+    // UI 버튼·입력 위의 터치는 게임 입력으로 치지 않는다
+    if (target?.closest('button, a, input, label, select, textarea, .ui-panel')) return;
     this.emit(this.toAudioTime(e.timeStamp), 'pointer');
   };
 
-  attach(el: HTMLElement): void {
+  /**
+   * 캔버스가 아니라 window 에 붙인다.
+   * HUD 오버레이가 화면을 덮고 있어 캔버스에만 붙이면 터치가 캔버스까지
+   * 내려오지 못한다. 실제로 모바일에서 탭이 전혀 먹지 않던 원인이었다.
+   */
+  attach(): void {
     if (this.attached) return;
     this.attached = true;
     window.addEventListener('keydown', this.onKeyDown, { passive: false });
     window.addEventListener('keyup', this.onKeyUp);
-    el.addEventListener('pointerdown', this.onPointerDown);
+    window.addEventListener('pointerdown', this.onPointerDown, { passive: true });
   }
 
-  detach(el: HTMLElement): void {
+  detach(): void {
     if (!this.attached) return;
     this.attached = false;
     window.removeEventListener('keydown', this.onKeyDown);
     window.removeEventListener('keyup', this.onKeyUp);
-    el.removeEventListener('pointerdown', this.onPointerDown);
+    window.removeEventListener('pointerdown', this.onPointerDown);
     this.held.clear();
   }
 

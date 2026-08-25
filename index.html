@@ -18,7 +18,7 @@
         모듈 스크립트가 file:// CORS 로 막혀 아무것도 그려지지 않는다.
         main.ts 가 부팅되면 이 블록을 지운다.
       -->
-      <div id="boot-fallback">
+      <div id="boot-fallback" hidden>
         <h1>DaDaDa · 서울 스카이 스윙</h1>
         <p>이 파일은 <b>개발 서버용 진입점</b>입니다. 브라우저로 직접 열면 실행되지 않습니다.</p>
         <p>
@@ -67,6 +67,22 @@
         font-size: 13px;
       }
     </style>
-    <script type="module" src="/src/main.ts"></script>
+    <script>
+      /*
+        개발 진입점이 잘못된 방식으로 열렸을 때의 안전망.
+        - http(s) 로 서빙 중이라면(예: GitHub Pages 를 저장소 루트로 설정한 경우)
+          빌드된 단일 파일이 있는 ./docs/ 로 보낸다.
+        - file:// 이라면 리다이렉트해도 소용없으니 안내 문구를 띄운다.
+      */
+      window.__bootFailed = function () {
+        if (location.protocol === 'http:' || location.protocol === 'https:') {
+          location.replace('./docs/');
+          return;
+        }
+        var el = document.getElementById('boot-fallback');
+        if (el) el.hidden = false;
+      };
+    </script>
+    <script type="module" src="/src/main.ts" onerror="window.__bootFailed()"></script>
   </body>
 </html>

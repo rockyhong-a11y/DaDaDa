@@ -18,6 +18,19 @@ export function el<T extends HTMLElement = HTMLDivElement>(html: string): T {
 
 // ---------------------------------------------------------------- 타이틀
 
+export function fullscreenSupported(): boolean {
+  return typeof document !== 'undefined' && !!document.documentElement.requestFullscreen;
+}
+
+export async function toggleFullscreen(): Promise<void> {
+  try {
+    if (document.fullscreenElement) await document.exitFullscreen();
+    else await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
+  } catch {
+    // iOS Safari 등 미지원 환경에서는 조용히 넘어간다
+  }
+}
+
 export function titleScreen(onStart: () => void, onSettings: () => void, onHow: () => void): HTMLElement {
   const root = el(`
     <div class="screen screen--showcase">
@@ -32,9 +45,10 @@ export function titleScreen(onStart: () => void, onSettings: () => void, onHow: 
       </div>
       <div class="title-actions">
         <button class="btn btn--primary" data-act="start">스테이지 선택</button>
-        <div style="display:flex;gap:8px">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
           <button class="btn btn--ghost" data-act="how">플레이 방법</button>
           <button class="btn btn--ghost" data-act="settings">설정</button>
+          ${fullscreenSupported() ? '<button class="btn btn--ghost" data-act="full">전체화면</button>' : ''}
         </div>
         <p class="hint"><kbd>Space</kbd> 또는 화면 탭으로 웹 발사 · <kbd>Esc</kbd> 일시정지</p>
       </div>
@@ -43,6 +57,7 @@ export function titleScreen(onStart: () => void, onSettings: () => void, onHow: 
   root.querySelector('[data-act="start"]')?.addEventListener('click', onStart);
   root.querySelector('[data-act="settings"]')?.addEventListener('click', onSettings);
   root.querySelector('[data-act="how"]')?.addEventListener('click', onHow);
+  root.querySelector('[data-act="full"]')?.addEventListener('click', () => void toggleFullscreen());
   return root;
 }
 
@@ -148,7 +163,7 @@ export function resultScreen(
           ${r.cleared && hasNext ? '<button class="btn btn--primary" data-act="next">다음 스테이지</button>' : ''}
           <button class="btn btn--ghost" data-act="select">스테이지 선택</button>
         </div>
-        ${r.cleared ? '' : '<p class="note">체력이 바닥나거나 스윙을 세 번 연속 놓치면 추락한다. 정박을 놓쳤을 때 무리하게 따라가지 말고 다음 박에 다시 붙어라.</p>'}
+        ${r.cleared ? '' : '<p class="note">SWING POWER 가 바닥나거나 스윙 노트를 연달아 놓치면 추락한다. 박자를 놓쳤을 때 무리하게 따라가지 말고 다음 박에 다시 붙어라.</p>'}
       </div>
     </div>
   `);
@@ -241,7 +256,10 @@ export function settingsScreen(
             <button data-q="medium" class="${s.quality === 'medium' ? 'on' : ''}">보통</button>
             <button data-q="high" class="${s.quality === 'high' ? 'on' : ''}">높음</button>
           </div>
-          <p class="note">낮음은 블룸 후처리를 끄고 해상도를 제한한다.</p>
+          <p class="note">
+            낮음은 블룸 후처리를 끄고 해상도를 제한한다.
+            ${s.autoQuality ? '지금은 기기 성능에 맞춰 <b>자동 조정</b> 중이며, 직접 고르면 자동 조정이 꺼진다.' : '자동 조정이 꺼져 있다.'}
+          </p>
         </div>
 
         <div class="field">
@@ -297,7 +315,8 @@ export function settingsScreen(
     if (!btn) return;
     const val = btn.dataset.q as Settings['quality'];
     for (const b of Array.from(q('#qual').querySelectorAll('button'))) b.classList.toggle('on', b === btn);
-    push({ quality: val });
+    // 직접 골랐으면 자동 조정을 끈다
+    push({ quality: val, autoQuality: false });
   });
 
   root.querySelector('[data-act="close"]')?.addEventListener('click', onClose);

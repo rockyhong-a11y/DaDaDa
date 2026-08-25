@@ -24,6 +24,8 @@ body {
   margin: 0;
   padding: 0;
   height: 100%;
+  /* 모바일 브라우저 툴바가 접힐 때 화면이 잘리지 않도록 */
+  height: 100dvh;
   overflow: hidden;
   background: var(--bg);
   color: var(--text);
@@ -36,6 +38,8 @@ body {
 #app {
   position: fixed;
   inset: 0;
+  height: 100%;
+  height: 100dvh;
 }
 
 #scene {
@@ -45,6 +49,10 @@ body {
   height: 100%;
   display: block;
   touch-action: none;
+  /* iOS 에서 캔버스 롱프레스 시 뜨는 메뉴·선택 방지 */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 
 #ui {
@@ -55,6 +63,14 @@ body {
 
 #ui > * {
   pointer-events: auto;
+}
+
+/*
+  HUD 는 화면 전체를 덮지만 입력을 먹으면 안 된다.
+  `#ui > *` 가 ID 선택자라 명시도가 더 높으므로 여기서도 ID 로 눌러 준다.
+*/
+#ui > .hud {
+  pointer-events: none;
 }
 
 button {
@@ -76,7 +92,9 @@ button {
   align-items: center;
   justify-content: center;
   gap: 24px;
-  padding: 28px;
+  padding: calc(28px + env(safe-area-inset-top)) calc(28px + env(safe-area-inset-right))
+    calc(28px + env(safe-area-inset-bottom)) calc(28px + env(safe-area-inset-left));
+  overflow-y: auto;
   background: radial-gradient(110% 80% at 50% 10%, rgba(16, 28, 66, 0.42), rgba(3, 4, 12, 0.9) 66%);
   backdrop-filter: blur(7px);
   animation: fade-in 0.35s ease both;
@@ -428,7 +446,8 @@ kbd {
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
-  padding: 18px 22px;
+  padding: calc(18px + env(safe-area-inset-top)) calc(22px + env(safe-area-inset-right)) 18px
+    calc(22px + env(safe-area-inset-left));
   background: linear-gradient(180deg, rgba(3, 5, 14, 0.72), transparent);
 }
 
@@ -627,7 +646,7 @@ kbd {
 .lane {
   position: absolute;
   left: 50%;
-  bottom: 74px;
+  bottom: calc(74px + env(safe-area-inset-bottom));
   transform: translateX(-50%);
   width: min(560px, 84vw);
   height: 58px;
@@ -704,7 +723,7 @@ kbd {
 .hud__progress {
   position: absolute;
   left: 50%;
-  bottom: 34px;
+  bottom: calc(34px + env(safe-area-inset-bottom));
   transform: translateX(-50%);
   width: min(560px, 84vw);
   display: flex;
@@ -744,8 +763,8 @@ kbd {
 
 .hud__heat {
   position: absolute;
-  left: 22px;
-  bottom: 34px;
+  left: calc(22px + env(safe-area-inset-left));
+  bottom: calc(34px + env(safe-area-inset-bottom));
   width: 130px;
 }
 
@@ -1022,6 +1041,32 @@ input[type='password'] {
   letter-spacing: 0.06em;
 }
 
+/* ---------------------------------------------------------- 토스트 */
+
+#toast {
+  position: absolute;
+  left: 50%;
+  bottom: calc(118px + env(safe-area-inset-bottom));
+  transform: translate(-50%, 12px);
+  max-width: min(420px, 88vw);
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(8, 12, 26, 0.92);
+  color: var(--text);
+  font-size: 12.5px;
+  line-height: 1.5;
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+#toast.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
 /* ---------------------------------------------------------- 반응형 */
 
 @media (max-width: 720px) {
@@ -1072,6 +1117,42 @@ input[type='password'] {
   }
   .stage-card {
     min-height: 176px;
+  }
+}
+
+/* 가로로 눕힌 폰: 세로 공간이 좁아 HUD 를 바짝 붙인다 */
+@media (max-height: 460px) {
+  .hud__top {
+    padding-top: calc(8px + env(safe-area-inset-top));
+    padding-bottom: 8px;
+  }
+  .hud__score b {
+    font-size: 24px;
+  }
+  .hud__combo b {
+    font-size: 22px;
+  }
+  .hud__hp {
+    top: 50px;
+  }
+  .hud__alt {
+    top: 48px;
+  }
+  .lane {
+    bottom: calc(46px + env(safe-area-inset-bottom));
+    height: 46px;
+  }
+  .hud__progress {
+    bottom: calc(14px + env(safe-area-inset-bottom));
+  }
+  .hud__heat {
+    display: none;
+  }
+  .title-mark__desc {
+    display: none;
+  }
+  .screen {
+    gap: 14px;
   }
 }
 

@@ -1,0 +1,49 @@
+name: Deploy to GitHub Pages
+
+# Pages 소스를 "GitHub Actions" 로 두면 이 워크플로가 배포를 담당한다.
+# "Deploy from a branch → /docs" 로 두면 이 워크플로 없이도 docs/index.html 이
+# 그대로 서빙되므로, 둘 중 편한 쪽 하나만 쓰면 된다.
+on:
+  push:
+    branches:
+      - main
+      - master
+      # 기본 브랜치에 병합하기 전에 미리 확인하려고 열어 둔 개발 브랜치.
+      # 병합 후에는 지워도 된다.
+      - claude/seoul-crossing-rhythm-game-3khhzp
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

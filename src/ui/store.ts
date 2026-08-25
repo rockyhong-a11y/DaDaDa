@@ -15,6 +15,8 @@ export interface Settings {
   /** 오디오 오프셋 보정(ms). 양수면 판정을 늦춘다. */
   offsetMs: number;
   quality: 'low' | 'medium' | 'high';
+  /** 화질을 기기 성능에 맞춰 자동으로 조정할지. 사용자가 직접 고르면 꺼진다. */
+  autoQuality: boolean;
   /** Google Maps Photorealistic 3D Tiles API 키 (선택) */
   googleKey: string;
   useTiles: boolean;
@@ -33,9 +35,25 @@ export const DEFAULT_SETTINGS: Settings = {
   sfx: 0.85,
   offsetMs: 0,
   quality: 'high',
+  autoQuality: true,
   googleKey: '',
   useTiles: false,
 };
+
+/**
+ * 첫 실행 시 기기 성능을 보고 화질을 정한다.
+ * 모바일에서 기본값 '높음' 으로 시작하면 블룸 + 고DPR 때문에
+ * 첫인상부터 프레임이 무너진다.
+ */
+export function detectQuality(): Settings['quality'] {
+  const coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+  const cores = navigator.hardwareConcurrency ?? 4;
+  const mem = (navigator as unknown as { deviceMemory?: number }).deviceMemory ?? 4;
+  const shortSide = Math.min(window.innerWidth, window.innerHeight);
+  if (coarse && (cores <= 4 || mem <= 4)) return 'low';
+  if (coarse || shortSide < 760) return 'medium';
+  return 'high';
+}
 
 function blank(): Save {
   return { version: 1, records: {}, settings: { ...DEFAULT_SETTINGS } };
@@ -47,6 +65,7 @@ export class Store {
 
   constructor() {
     this.data = blank();
+    this.data.settings.quality = detectQuality();
     try {
       const raw = localStorage.getItem(KEY);
       if (raw) {
@@ -54,11 +73,12 @@ export class Store {
         this.data = {
           version: 1,
           records: parsed.records ?? {},
-          settings: { ...DEFAULT_SETTINGS, ...(parsed.settings ?? {}) },
+          settings: { ...DEFAULT_SETTINGS, quality: detectQuality(), ...(parsed.settings ?? {}) },
         };
       }
     } catch {
       this.data = blank();
+      this.data.settings.quality = detectQuality();
     }
   }
 

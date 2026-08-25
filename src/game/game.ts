@@ -150,7 +150,7 @@ export class Game {
   ) {
     this.conductor = new Conductor(engine);
     this.sfx = new Sfx(engine);
-    this.chase = new ChaseCamera(window.innerWidth / Math.max(1, window.innerHeight));
+    this.chase = new ChaseCamera(renderer.aspect);
     this.world.add(this.player.root, this.rope.mesh, this.trail.mesh, this.markers.group);
     this.input.onPress(this.handlePress);
   }
@@ -712,7 +712,7 @@ export class Game {
   }
 
   resize(): void {
-    this.chase.resize(window.innerWidth / Math.max(1, window.innerHeight));
+    this.chase.resize(this.renderer.aspect);
     this.tilesLayer?.resize(this.chase.camera, this.renderer.renderer);
   }
 }

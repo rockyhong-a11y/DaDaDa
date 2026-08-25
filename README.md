@@ -8,26 +8,37 @@ BGM 의 박자에 맞춰 웹을 쏘면 고도를 유지하며 다음 건물로 �
 
 ## 실행
 
-### 1. 그냥 열기 — 단일 HTML 파일
+### 1. 웹에서 바로 — GitHub Pages
 
-저장소 루트의 **`dadada.html`** 을 브라우저로 열면 끝이다. 서버도 설치도 필요 없다.
+**https://rockyhong-a11y.github.io/DaDaDa/** — PC · 모바일 브라우저 모두 지원한다.
+설정은 저장소 **Settings → Pages** 에서 아래 둘 중 하나만 고르면 된다.
+
+| Pages 소스 | 서빙되는 것 | 비고 |
+|-----------|-----------|------|
+| **Deploy from a branch → `/docs`** (권장) | `docs/index.html` | CI 불필요. 커밋된 단일 파일을 그대로 서빙한다. |
+| **GitHub Actions** | `dist/` | `.github/workflows/pages.yml` 이 빌드해서 올린다. |
+
+브랜치 루트(`/`)로 설정해도 동작한다 — 루트 `index.html` 이 `./docs/` 로 넘겨준다.
+
+### 2. 그냥 열기 — 단일 HTML 파일
+
+**`docs/index.html`** 을 브라우저로 열면 끝이다. 서버도 설치도 필요 없다.
 JS·CSS·아이콘까지 전부 한 파일(약 1.1MB) 안에 들어 있어 USB 에 담아 다녀도 그대로 돌아간다.
 
-### 2. 소스로 개발하기
+### 3. 소스로 개발하기
 
 ```bash
 npm install
 npm run dev            # http://localhost:5173
-npm run build          # dist/ (일반 빌드) + dist-single/dadada.html (단일 파일)
+npm run build          # dist/ + dist-single/dadada.html + docs/index.html
 npm run build:single   # 단일 파일만
+npm run build:pages    # 단일 파일 + docs/ 갱신
 npm run preview        # 빌드 결과 확인
 ```
 
-`dadada.html` 을 갱신하려면 빌드 후 `cp dist-single/dadada.html ./dadada.html`.
-
 > **루트의 `index.html` 은 개발 서버용 진입점이다.** 브라우저로 직접 열면 실행되지 않는다
 > (`file://` 에서는 origin 이 `null` 이라 모듈 스크립트·스타일시트가 CORS 로 차단된다).
-> 직접 열면 흰 화면 대신 안내 문구가 뜨도록 해 뒀다. 바로 실행하려면 `dadada.html` 을 쓴다.
+> 직접 열면 흰 화면 대신 안내 문구가 뜨고, http(s) 로 서빙 중이라면 `./docs/` 로 자동 이동한다.
 >
 > 같은 이유로 `dist/index.html` 도 직접 열면 안 되고 정적 서버로 서빙해야 한다.
 > 단일 파일 빌드는 번들을 IIFE 로 뽑아 일반 `<script>` 로 인라인하기 때문에 이 제약이 없다.
@@ -61,8 +72,11 @@ npm run preview        # 빌드 결과 확인
 
 | 입력 | 동작 |
 |------|------|
-| `Space` `J` `K` `F` `D` `↑` / 화면 탭 | 웹 발사 · 공중 트릭 |
+| `Space` `J` `K` `F` `D` `↑` / **화면 아무 곳이나 탭** | 웹 발사 · 공중 트릭 |
 | `Esc` | 일시정지 |
+
+모바일은 세로·가로 모두 플레이할 수 있고, 가로가 시야가 넓다.
+노치·홈 인디케이터 영역을 피해 HUD 를 배치했고, 주소창이 접히고 펴져도 캔버스가 따라 붙는다.
 
 - **◆ 스윙 노트(청록 마름모)** — 새 웹을 쏴 다음 건물로 넘어간다.
 - **● 에어 노트(분홍 원)** — 스윙 도중 넣는 공중 트릭. 점수와 모멘텀이 오른다.
@@ -218,6 +232,19 @@ src/
 │   └── tiles3d.ts          Google 실사 3D 타일 (선택)
 └── ui/                     타이틀 · 스테이지 선택 · HUD · 결과 · 설정
 ```
+
+## 모바일 대응
+
+- **입력** — 화면 아무 곳이나 탭하면 웹이 나간다. 포인터 리스너를 캔버스가 아니라 `window`
+  에 붙였다. HUD 오버레이가 화면 전체를 덮고 있어 캔버스에만 붙이면 터치가 닿지 않는다.
+- **오디오** — 첫 제스처에서 `AudioContext` 를 깨우고 무음 버퍼를 한 번 흘려보내
+  iOS Safari 의 오디오 잠금을 푼다.
+- **화질** — 첫 실행 시 포인터 종류·코어 수·메모리·화면 크기로 화질을 정하고
+  (`detectQuality`), 총 픽셀 수 예산을 둬 고DPR 폰에서 셰이딩이 폭주하지 않게 한다.
+  플레이 중 프레임이 계속 모자라면 한 단계 자동으로 낮춘다(설정에서 직접 고르면 자동 조정 해제).
+- **레이아웃** — `100dvh` 와 `env(safe-area-inset-*)` 로 주소창·노치를 피하고,
+  세로 높이가 좁은 가로 모드에서는 HUD 를 압축한다. 캔버스 크기는 `window.innerHeight` 가
+  아니라 캔버스의 실제 CSS 크기에서 읽는다.
 
 ## 단일 파일 빌드
 

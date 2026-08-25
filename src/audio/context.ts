@@ -12,6 +12,7 @@ export class AudioEngine {
   readonly noise: AudioBuffer;
   readonly reverb: ConvolverNode;
   private readonly reverbSend: GainNode;
+  private unlocked = false;
 
   constructor() {
     const Ctor: typeof AudioContext =
@@ -52,6 +53,25 @@ export class AudioEngine {
 
   async resume(): Promise<void> {
     if (this.ctx.state !== 'running') await this.ctx.resume();
+  }
+
+  /**
+   * 모바일 브라우저 오디오 잠금 해제.
+   * iOS Safari 는 사용자 제스처 안에서 컨텍스트를 깨우고 실제로 소리를 한 번
+   * 내보내야 이후 예약된 소리가 난다. 무음 버퍼를 한 번 흘려보내 잠금을 푼다.
+   */
+  unlock(): void {
+    void this.resume();
+    if (this.unlocked) return;
+    this.unlocked = true;
+    try {
+      const src = this.ctx.createBufferSource();
+      src.buffer = this.ctx.createBuffer(1, 1, this.ctx.sampleRate);
+      src.connect(this.ctx.destination);
+      src.start(0);
+    } catch {
+      // 실패해도 게임 진행에는 지장이 없다
+    }
   }
 
   get now(): number {

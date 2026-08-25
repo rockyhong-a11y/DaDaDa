@@ -27,11 +27,14 @@ export class Renderer {
   private composer: EffectComposer | null = null;
   private bloom: UnrealBloomPass | null = null;
   private renderPass: RenderPass | null = null;
-  private quality: Quality = 'high';
+  private qualityLevel: Quality = 'high';
   private camera: PerspectiveCamera | null = null;
   private preset: SkyPreset | null = null;
 
+  private readonly canvas: HTMLCanvasElement;
+
   constructor(canvas: HTMLCanvasElement) {
+    this.canvas = canvas;
     this.renderer = new WebGLRenderer({
       canvas,
       antialias: true,
@@ -68,14 +71,35 @@ export class Renderer {
   }
 
   private bloomScale(): number {
-    return this.quality === 'high' ? 1 : this.quality === 'medium' ? 0.75 : 0;
+    return this.qualityLevel === 'high' ? 1 : this.qualityLevel === 'medium' ? 0.75 : 0;
+  }
+
+  get quality(): Quality {
+    return this.qualityLevel;
+  }
+
+  /** 캔버스의 CSS 크기. 모바일 툴바 때문에 window.innerHeight 와 다를 수 있다. */
+  get width(): number {
+    return this.canvas.clientWidth || window.innerWidth;
+  }
+
+  get height(): number {
+    return this.canvas.clientHeight || window.innerHeight;
+  }
+
+  get aspect(): number {
+    return this.width / Math.max(1, this.height);
   }
 
   setQuality(q: Quality): void {
-    this.quality = q;
+    this.qualityLevel = q;
     const dpr = window.devicePixelRatio || 1;
-    const cap = q === 'high' ? 2 : q === 'medium' ? 1.5 : 1;
-    this.renderer.setPixelRatio(Math.min(dpr, cap));
+    let cap = q === 'high' ? 2 : q === 'medium' ? 1.5 : 1;
+    // 총 픽셀 수 상한. 고해상도 폰에서 DPR 3 으로 그리면 셰이딩 비용이 감당이 안 된다.
+    const budget = q === 'high' ? 4.2e6 : q === 'medium' ? 2.6e6 : 1.5e6;
+    const area = Math.max(1, this.width * this.height);
+    cap = Math.min(cap, Math.sqrt(budget / area));
+    this.renderer.setPixelRatio(Math.max(0.6, Math.min(dpr, cap)));
     if (q === 'low') {
       this.composer?.dispose();
       this.composer = null;
@@ -100,15 +124,27 @@ export class Renderer {
 
   ensureComposer(camera: PerspectiveCamera): void {
     this.camera = camera;
-    if (this.quality !== 'low' && !this.composer) this.buildComposer(camera);
+    if (this.qualityLevel !== 'low' && !this.composer) this.buildComposer(camera);
     else if (this.renderPass) this.renderPass.camera = camera;
   }
 
   resize(): void {
-    const w = window.innerWidth;
-    const h = window.innerHeight;
+    const w = this.width;
+    const h = this.height;
     this.renderer.setSize(w, h, false);
     this.composer?.setSize(w, h);
+    // 픽셀 예산은 화면 크기에 따라 달라지므로 크기가 바뀌면 다시 계산한다
+    this.setPixelBudget();
+  }
+
+  private setPixelBudget(): void {
+    const dpr = window.devicePixelRatio || 1;
+    const q = this.qualityLevel;
+    let cap = q === 'high' ? 2 : q === 'medium' ? 1.5 : 1;
+    const budget = q === 'high' ? 4.2e6 : q === 'medium' ? 2.6e6 : 1.5e6;
+    const area = Math.max(1, this.width * this.height);
+    cap = Math.min(cap, Math.sqrt(budget / area));
+    this.renderer.setPixelRatio(Math.max(0.6, Math.min(dpr, cap)));
   }
 
   render(camera: PerspectiveCamera): void {
