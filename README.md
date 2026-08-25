@@ -11,14 +11,18 @@ BGM 의 박자에 맞춰 웹을 쏘면 고도를 유지하며 다음 건물로 �
 ### 1. 웹에서 바로 — GitHub Pages
 
 **https://rockyhong-a11y.github.io/DaDaDa/** — PC · 모바일 브라우저 모두 지원한다.
-설정은 저장소 **Settings → Pages** 에서 아래 둘 중 하나만 고르면 된다.
+
+저장소 **Settings → Pages** 의 소스 설정에 따라 아래 셋 다 동작한다.
 
 | Pages 소스 | 서빙되는 것 | 비고 |
 |-----------|-----------|------|
-| **Deploy from a branch → `/docs`** (권장) | `docs/index.html` | CI 불필요. 커밋된 단일 파일을 그대로 서빙한다. |
-| **GitHub Actions** | `dist/` | `.github/workflows/pages.yml` 이 빌드해서 올린다. |
+| **Deploy from a branch → `/docs`** (권장) | `docs/index.html` | CI 불필요. 커밋된 단일 파일이 곧바로 루트 URL 이 된다. |
+| Deploy from a branch → `/` (root) | 루트 `index.html` → `./docs/` | 한 번 넘어가므로 주소가 `/DaDaDa/docs/` 가 된다. |
+| GitHub Actions | `dist/` | `.github/workflows/pages.yml` 의 push 트리거 주석을 풀어야 자동 배포된다. |
 
-브랜치 루트(`/`)로 설정해도 동작한다 — 루트 `index.html` 이 `./docs/` 로 넘겨준다.
+> 브랜치 배포와 Actions 배포가 **동시에** 켜져 있으면 push 마다 배포가 두 번 일어나
+> 어느 쪽이 최종본인지 정해지지 않는다. 그래서 워크플로는 기본이 수동 실행이고,
+> 브랜치 배포 하나만 자동으로 돌게 해 뒀다.
 
 ### 2. 그냥 열기 — 단일 HTML 파일
 
