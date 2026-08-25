@@ -1,0 +1,23 @@
+{
+  "name": "dadada-seoul-swing",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "DaDaDa - Seoul Sky Rhythm: 서울 빌딩숲을 웹스윙으로 건너는 3D 리듬 게임",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --port 4173",
+    "typecheck": "tsc --noEmit",
+    "fetch:osm": "node scripts/fetch-osm.mjs"
+  },
+  "dependencies": {
+    "3d-tiles-renderer": "^0.5.2",
+    "three": "^0.185.1"
+  },
+  "devDependencies": {
+    "@types/three": "^0.185.0",
+    "typescript": "^5.9.2",
+    "vite": "^7.0.2"
+  }
+}
