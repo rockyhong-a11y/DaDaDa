@@ -500,6 +500,29 @@ kbd {
   transform: scale(1.14);
 }
 
+/* 10콤보 단위마다 태고의 콤보 연출처럼 한 번 크게 튀며 금색으로 번쩍인다 */
+.hud__combo.milestone b {
+  animation: combo-milestone-pop 0.42s cubic-bezier(0.16, 1.5, 0.4, 1);
+}
+
+@keyframes combo-milestone-pop {
+  0% {
+    transform: scale(1.14);
+    color: var(--cyan);
+    text-shadow: 0 0 26px rgba(56, 246, 255, 0.55);
+  }
+  40% {
+    transform: scale(1.65);
+    color: #ffd166;
+    text-shadow: 0 0 36px rgba(255, 209, 102, 0.95);
+  }
+  100% {
+    transform: scale(1.14);
+    color: var(--cyan);
+    text-shadow: 0 0 26px rgba(56, 246, 255, 0.55);
+  }
+}
+
 .hud__combo span {
   display: block;
   margin-top: 3px;
@@ -587,18 +610,23 @@ kbd {
   color: var(--muted);
 }
 
+/*
+ * 태고의 달인처럼 판정 텍스트를 화면 중앙이 아니라 실제 입력이 일어나는
+ * 판정선(레인) 바로 위에 띄운다 — 시선이 손가락 닿는 지점에서 벗어나지
+ * 않아야 "지금 내 터치가 어떻게 판정됐는지"를 곧바로 알 수 있다.
+ */
 .hud__judge {
   position: absolute;
   left: 50%;
-  top: 40%;
-  transform: translate(-50%, -50%);
+  bottom: calc(146px + env(safe-area-inset-bottom));
+  transform: translate(-50%, 0);
   text-align: center;
   opacity: 0;
 }
 
 .hud__judge b {
   display: block;
-  font-size: clamp(30px, 6vw, 54px);
+  font-size: clamp(26px, 5.4vw, 46px);
   font-weight: 900;
   letter-spacing: 0.02em;
   line-height: 1;
@@ -619,19 +647,25 @@ kbd {
 @keyframes judge-pop {
   0% {
     opacity: 0;
-    transform: translate(-50%, -50%) scale(0.72);
+    transform: translate(-50%, 12%) scale(0.6);
   }
-  22% {
+  20% {
     opacity: 1;
-    transform: translate(-50%, -50%) scale(1.06);
+    transform: translate(-50%, 0) scale(1.22);
   }
-  70% {
+  38% {
+    transform: translate(-50%, 0) scale(0.94);
+  }
+  50% {
+    transform: translate(-50%, 0) scale(1.04);
+  }
+  72% {
     opacity: 1;
-    transform: translate(-50%, -54%) scale(1);
+    transform: translate(-50%, -10px) scale(1);
   }
   100% {
     opacity: 0;
-    transform: translate(-50%, -62%) scale(0.98);
+    transform: translate(-50%, -38px) scale(0.96);
   }
 }
 
@@ -883,6 +917,49 @@ kbd {
   from {
     transform: scaleY(1.4);
     filter: brightness(1.9);
+  }
+}
+
+/*
+ * 실제 판정이 나는 순간 판정선 자체가 판정 색으로 확 번쩍이며 굵어졌다
+ * 가라앉는다 — 태고의 달인에서 북을 칠 때마다 판정 색으로 북 테두리가
+ * 번쩍이는 것과 같은 역할. 배경음 박자에 맞춘 .beat 펄스와는 별개로,
+ * 터치가 실제로 들어간 그 프레임에만 짧고 세게 터진다.
+ */
+.lane__hitline.judge-hit {
+  animation: judge-hit-pulse 0.24s cubic-bezier(0.1, 0.8, 0.3, 1);
+}
+
+.lane__hitline[data-judge='PERFECT'] {
+  --jc: var(--cyan);
+}
+
+.lane__hitline[data-judge='GREAT'] {
+  --jc: var(--green);
+}
+
+.lane__hitline[data-judge='GOOD'] {
+  --jc: var(--amber);
+}
+
+.lane__hitline[data-judge='MISS'] {
+  --jc: var(--red);
+}
+
+@keyframes judge-hit-pulse {
+  0% {
+    transform: scaleY(1) scaleX(1);
+    filter: brightness(1);
+  }
+  22% {
+    transform: scaleY(2.1) scaleX(3.2);
+    filter: brightness(2.4);
+    background: var(--jc);
+    box-shadow: 0 0 38px var(--jc), 0 0 70px var(--jc);
+  }
+  100% {
+    transform: scaleY(1) scaleX(1);
+    filter: brightness(1);
   }
 }
 
@@ -1386,6 +1463,9 @@ input[type='password'] {
   .lane {
     bottom: 92px;
   }
+  .hud__judge {
+    bottom: 164px;
+  }
   .hud__heat {
     display: none;
   }
@@ -1435,6 +1515,9 @@ input[type='password'] {
   .lane {
     bottom: calc(46px + env(safe-area-inset-bottom));
     height: 46px;
+  }
+  .hud__judge {
+    bottom: calc(106px + env(safe-area-inset-bottom));
   }
   .hud__progress {
     bottom: calc(14px + env(safe-area-inset-bottom));

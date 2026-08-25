@@ -162,10 +162,12 @@ export class Hud {
 
     if (s.combo !== this.lastCombo) {
       this.comboEl.textContent = String(s.combo);
-      this.comboWrap.classList.remove('pop');
+      const milestone = s.combo > 0 && s.combo % 10 === 0 && s.combo > this.lastCombo;
+      this.comboWrap.classList.remove('pop', 'milestone');
       // 리플로우를 강제해 애니메이션을 재시작
       void this.comboWrap.offsetWidth;
       if (s.combo > 0) this.comboWrap.classList.add('pop');
+      if (milestone) this.comboWrap.classList.add('milestone');
       this.lastCombo = s.combo;
     }
 
@@ -197,6 +199,12 @@ export class Hud {
       this.judgeWrap.classList.remove('show');
       void this.judgeWrap.offsetWidth;
       this.judgeWrap.classList.add('show');
+
+      // 판정선 자체도 판정 색으로 번쩍인다 — 터치가 들어간 그 자리에서 바로 결과가 보이게.
+      this.hitline.dataset.judge = s.lastJudge;
+      this.hitline.classList.remove('judge-hit');
+      void this.hitline.offsetWidth;
+      this.hitline.classList.add('judge-hit');
     }
 
     if (s.place !== this.lastPlace) {
