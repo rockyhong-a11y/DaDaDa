@@ -12,7 +12,61 @@
     <div id="app">
       <canvas id="scene"></canvas>
       <div id="ui"></div>
+      <!--
+        스크립트가 뜨지 않았을 때만 보이는 안내.
+        이 파일은 개발 서버(npm run dev)용 진입점이라 브라우저로 직접 열면
+        모듈 스크립트가 file:// CORS 로 막혀 아무것도 그려지지 않는다.
+        main.ts 가 부팅되면 이 블록을 지운다.
+      -->
+      <div id="boot-fallback">
+        <h1>DaDaDa · 서울 스카이 스윙</h1>
+        <p>이 파일은 <b>개발 서버용 진입점</b>입니다. 브라우저로 직접 열면 실행되지 않습니다.</p>
+        <p>
+          바로 실행하려면 저장소 루트의 <code>dadada.html</code> 을 여세요 (단일 파일 웹앱).<br />
+          소스로 개발하려면 <code>npm install &amp;&amp; npm run dev</code> 후
+          <code>http://localhost:5173</code> 로 접속하세요.
+        </p>
+      </div>
     </div>
+    <style>
+      #boot-fallback {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        margin: 0;
+        padding: 28px;
+        text-align: center;
+        background: #05060f;
+        color: #e8eefc;
+        font-family: -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, sans-serif;
+        line-height: 1.8;
+      }
+      #boot-fallback h1 {
+        margin: 0;
+        font-size: 26px;
+        background: linear-gradient(100deg, #38f6ff, #ff4fc4);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+      #boot-fallback p {
+        margin: 0;
+        max-width: 520px;
+        font-size: 14px;
+        color: #8b9ac4;
+      }
+      #boot-fallback code {
+        padding: 2px 6px;
+        border-radius: 5px;
+        background: #16203c;
+        color: #e8eefc;
+        font-size: 13px;
+      }
+    </style>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

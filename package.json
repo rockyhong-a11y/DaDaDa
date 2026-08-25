@@ -6,10 +6,11 @@
   "description": "DaDaDa - Seoul Sky Rhythm: 서울 빌딩숲을 웹스윙으로 건너는 3D 리듬 게임",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && vite build && vite build --config vite.single.config.ts",
     "preview": "vite preview --port 4173",
     "typecheck": "tsc --noEmit",
-    "fetch:osm": "node scripts/fetch-osm.mjs"
+    "fetch:osm": "node scripts/fetch-osm.mjs",
+    "build:single": "tsc --noEmit && vite build --config vite.single.config.ts"
   },
   "dependencies": {
     "3d-tiles-renderer": "^0.5.2",

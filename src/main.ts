@@ -20,6 +20,8 @@ import {
 
 const canvas = document.getElementById('scene') as HTMLCanvasElement;
 const uiRoot = document.getElementById('ui') as HTMLDivElement;
+// 스크립트가 안 떴을 때 보여 주던 안내는 이제 필요 없다
+document.getElementById('boot-fallback')?.remove();
 
 const params = new URLSearchParams(location.search);
 const store = new Store();

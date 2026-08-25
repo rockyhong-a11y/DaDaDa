@@ -6,12 +6,31 @@
 BGM 의 박자에 맞춰 웹을 쏘면 고도를 유지하며 다음 건물로 넘어가고, 박자를 놓치면 고도가 꺼져 추락한다.
 스테이지마다 서울의 실제 지역을 하나씩 가로지르고, 마지막에는 그 동네의 랜드마크 정상까지 타고 오른다.
 
+## 실행
+
+### 1. 그냥 열기 — 단일 HTML 파일
+
+저장소 루트의 **`dadada.html`** 을 브라우저로 열면 끝이다. 서버도 설치도 필요 없다.
+JS·CSS·아이콘까지 전부 한 파일(약 1.1MB) 안에 들어 있어 USB 에 담아 다녀도 그대로 돌아간다.
+
+### 2. 소스로 개발하기
+
 ```bash
 npm install
-npm run dev      # http://localhost:5173
-npm run build    # dist/ 로 정적 빌드
-npm run preview  # 빌드 결과 확인
+npm run dev            # http://localhost:5173
+npm run build          # dist/ (일반 빌드) + dist-single/dadada.html (단일 파일)
+npm run build:single   # 단일 파일만
+npm run preview        # 빌드 결과 확인
 ```
+
+`dadada.html` 을 갱신하려면 빌드 후 `cp dist-single/dadada.html ./dadada.html`.
+
+> **루트의 `index.html` 은 개발 서버용 진입점이다.** 브라우저로 직접 열면 실행되지 않는다
+> (`file://` 에서는 origin 이 `null` 이라 모듈 스크립트·스타일시트가 CORS 로 차단된다).
+> 직접 열면 흰 화면 대신 안내 문구가 뜨도록 해 뒀다. 바로 실행하려면 `dadada.html` 을 쓴다.
+>
+> 같은 이유로 `dist/index.html` 도 직접 열면 안 되고 정적 서버로 서빙해야 한다.
+> 단일 파일 빌드는 번들을 IIFE 로 뽑아 일반 `<script>` 로 인라인하기 때문에 이 제약이 없다.
 
 ---
 
@@ -199,6 +218,17 @@ src/
 │   └── tiles3d.ts          Google 실사 3D 타일 (선택)
 └── ui/                     타이틀 · 스테이지 선택 · HUD · 결과 · 설정
 ```
+
+## 단일 파일 빌드
+
+`vite.single.config.ts` 의 `inlineEverything` 플러그인이 산출물을 HTML 하나로 합친다.
+
+- `rollupOptions.output.format: 'iife'` + `inlineDynamicImports: true` — 코드 분할을 없애
+  동적 import 까지 한 번들로 합친다. 모듈이 아닌 일반 스크립트라 `file://` 에서 CORS 에 걸리지 않는다.
+- `assetsInlineLimit: MAX_SAFE_INTEGER`, `cssCodeSplit: false` — 에셋과 CSS 를 전부 인라인.
+- 인라인할 때 `String.replace` 의 **치환 문자열 대신 함수**를 쓴다. 문자열을 쓰면 번들 코드
+  안의 `$&` `$1` 같은 시퀀스를 replace 가 치환 패턴으로 해석해 JS 가 조용히 깨진다.
+- 코드·CSS 안의 `</script` `</style` 는 이스케이프해 태그가 조기 종료되지 않게 한다.
 
 ## 개발용 URL 파라미터
 
