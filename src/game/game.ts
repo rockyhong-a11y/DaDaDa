@@ -25,6 +25,8 @@ export interface LaneNote {
   remain: number;
   kind: Note['kind'];
   hit: Judgement | null;
+  /** hold 전용: 종료 시점까지 남은 시간(초). 레인에 지속시간 바를 그리는 데 쓴다. */
+  holdEndRemain?: number;
 }
 
 /** HUD 가 매 프레임 읽어가는 상태 스냅샷 */
@@ -50,9 +52,18 @@ export interface HudState {
   landmark: string | null;
   /** 지금 지나는 구역 이름 (아파트 단지·상권 등). 없으면 null. */
   place: string | null;
-  /** 최근 근접한 주요 랜드마크 이름 (연출용 배너) */
+  /** 연출용 이름 배너. 'landmark' = 실존 건물, 'area' = 처음 들어온 구역 */
+  calloutKind: 'landmark' | 'area' | null;
   calloutTitle: string | null;
+  calloutSubtitle: string;
   calloutAt: number;
+  /** 홀드 노트 진행 상태 */
+  holdActive: boolean;
+  holdProgress: number;
+  /** 연타 노트 진행 상태 */
+  mashActive: boolean;
+  mashCount: number;
+  mashTarget: number;
 }
 
 export interface StageResult {
@@ -89,8 +100,15 @@ export class Game {
     countdown: 0,
     landmark: null,
     place: null,
+    calloutKind: null,
     calloutTitle: null,
+    calloutSubtitle: '',
     calloutAt: -99,
+    holdActive: false,
+    holdProgress: 0,
+    mashActive: false,
+    mashCount: 0,
+    mashTarget: 1,
   };
 
   phase: Phase = 'loading';
@@ -143,9 +161,20 @@ export class Game {
 
   private landmarksList: BuildingInst[] = [];
   private announcedLandmarks = new Set<BuildingInst>();
+  private announcedZones = new Set<string>();
   private zoneName: string | null = null;
-  private calloutQueue: string[] = [];
+  private calloutQueue: { kind: 'landmark' | 'area'; title: string; subtitle: string }[] = [];
   private calloutBusyUntil = 0;
+
+  /** 지금 진행 중인 홀드 노트 (없으면 null) */
+  private activeHold: Note | null = null;
+  private holdHeldTime = 0;
+  private holdLastSongTime = 0;
+  /** 지금 진행 중인 연타 노트 (없으면 null) */
+  private activeMash: Note | null = null;
+  private mashCount = 0;
+  /** 다음으로 활성화할 액션 노트를 찾기 시작할 위치 (노트 배열 인덱스) */
+  private actionCursor = 0;
 
   private readonly pos = new Vector3();
   private readonly prevPos = new Vector3();
@@ -292,11 +321,26 @@ export class Game {
 
     this.zoneName = null;
     this.announcedLandmarks.clear();
+    this.announcedZones.clear();
     this.calloutQueue.length = 0;
     this.calloutBusyUntil = 0;
     this.hud.place = null;
+    this.hud.calloutKind = null;
     this.hud.calloutTitle = null;
+    this.hud.calloutSubtitle = '';
     this.hud.calloutAt = -99;
+
+    this.activeHold = null;
+    this.holdHeldTime = 0;
+    this.holdLastSongTime = 0;
+    this.activeMash = null;
+    this.mashCount = 0;
+    this.actionCursor = 0;
+    this.hud.holdActive = false;
+    this.hud.holdProgress = 0;
+    this.hud.mashActive = false;
+    this.hud.mashCount = 0;
+    this.hud.mashTarget = 1;
 
     const seg0 = this.chart.segments[0];
     const d = new Vector3(seg0.to.x - seg0.from.x, 0, seg0.to.z - seg0.from.z).normalize();
@@ -384,12 +428,21 @@ export class Game {
 
   /** 입력 시각과 가장 가까운 미판정 노트를 찾아 판정한다 */
   private judgePress(songTime: number): void {
+    // 연타 창이 열려 있으면 이 탭은 그 연타 카운트로 들어간다 —
+    // 스윙/에어처럼 "가장 가까운 노트 하나"를 찾는 매칭과는 다른 입력 모델이다.
+    if (this.activeMash) {
+      this.mashCount++;
+      this.sfx.shoot();
+      return;
+    }
+
     const notes = this.chart.notes;
     let best = -1;
     let bestErr = Infinity;
     for (let i = this.noteCursor; i < notes.length; i++) {
       const n = notes[i];
       if (noteState.has(n)) continue;
+      if (n.kind === 'hold' || n.kind === 'mash') continue;
       const err = songTime - n.time;
       if (err > this.windows.good) continue;
       if (err < -this.windows.good) break;
@@ -407,7 +460,8 @@ export class Game {
   private resolveNote(n: Note, kind: Judgement, offset: number): void {
     noteState.set(n, kind);
     const isSwing = n.kind === 'swing';
-    applyJudge(this.score, kind, isSwing);
+    const isAction = n.kind === 'hold' || n.kind === 'mash';
+    applyJudge(this.score, kind, n.kind);
     this.hud.lastJudge = kind;
     this.hud.lastJudgeAt = this.elapsed;
     this.hud.lastOffset = offset;
@@ -415,14 +469,15 @@ export class Game {
 
     if (kind === 'MISS') {
       this.heat = Math.max(0, this.heat - 0.5);
-      // 박자를 놓치면 웹이 헛돌아 고도가 꺼진다
-      this.sagVel -= isSwing ? 15 : 5;
-      this.chase.kick(0.5);
+      // 박자를 놓치면 웹이 헛돌아 고도가 꺼진다. 홀드/연타를 그르친 건
+      // 앵커를 놓친 것보다는 가볍게, 그냥 트릭을 흘린 것보다는 무겁게 다룬다.
+      this.sagVel -= isSwing ? 15 : isAction ? 10 : 5;
+      this.chase.kick(isAction ? 0.7 : 0.5);
     } else {
       const power = kind === 'PERFECT' ? 1 : kind === 'GREAT' ? 0.6 : 0.3;
       this.heat = Math.min(1, this.heat + power * 0.12);
       this.sagVel += power * 5.5;
-      this.chase.kick(power * 0.22);
+      this.chase.kick(power * (isAction ? 0.32 : 0.22));
       // 파티클은 캐릭터가 아니라 앵커 쪽에서 터뜨려 몸이 흰 덩어리로 뭉개지지 않게 한다
       const seg = this.chart.segments[Math.min(n.swingIndex, this.chart.segments.length - 1)];
       this.burstAt.set(
@@ -433,10 +488,10 @@ export class Game {
       this.markers.pop(
         this.burstAt,
         kind === 'PERFECT' ? 0x8ffcff : kind === 'GREAT' ? 0x7dff9c : 0xffe07d,
-        isSwing ? power : power * 0.5,
+        isSwing || isAction ? power : power * 0.5,
       );
       if (isSwing) this.sfx.shoot();
-      else this.trickT = 1;
+      else if (!isAction) this.trickT = 1;
     }
     if (this.score.hp <= 0 || this.score.missStreak >= this.maxMissStreak) this.crash();
   }
@@ -464,6 +519,7 @@ export class Game {
     if (this.phase === 'playing') {
       if (this.autoplay) this.autoPlay(songTime);
       this.autoMiss(songTime);
+      this.updateActionNotes(songTime);
       this.updateBeatPulse(songTime);
     }
 
@@ -522,6 +578,7 @@ export class Game {
       const n = notes[i];
       if (noteState.has(n)) continue;
       if (n.time > songTime) break;
+      if (n.kind === 'hold' || n.kind === 'mash') continue; // updateActionNotes 가 자동 완료시킨다
       const jitter = (Math.random() - 0.5) * this.windows.perfect * 1.4;
       this.resolveNote(n, classify(Math.abs(jitter), this.windows), jitter);
     }
@@ -536,9 +593,86 @@ export class Game {
         this.noteCursor++;
         continue;
       }
+      // 홀드/연타는 창이 훨씬 길고 자기 종료 시각에 updateActionNotes 가 직접
+      // 판정한다. 겹치지 않게 배치했으므로 여기서 멈춰도 뒤 노트를 막지 않는다.
+      if (n.kind === 'hold' || n.kind === 'mash') break;
       if (songTime - n.time <= this.windows.good) break;
       this.resolveNote(n, 'MISS', songTime - n.time);
       this.noteCursor++;
+    }
+  }
+
+  /**
+   * 홀드·연타 액션 노트를 진행시킨다.
+   *
+   * 스윙/에어처럼 "한 번 입력 = 한 번 판정"이 아니라, 시작~종료 시각 사이의
+   * 상태(눌려 있는가, 몇 번 탭했는가)를 매 프레임 누적하다가 종료 시각에
+   * 한 번에 판정한다. 자동 플레이 모드에서는 홀드는 계속 누르고 있는 것으로,
+   * 연타는 시간에 비례해 목표치를 채워 가는 것으로 시뮬레이션한다.
+   *
+   * 누적은 프레임 dt 가 아니라 songTime 의 실제 변화량으로 한다 — 렌더링이
+   * 잠깐 버벅여 프레임이 뜨문뜨문 와도(오디오 클럭은 프레임과 무관하게 계속
+   * 흐르므로) 실제로 누른 시간과 어긋나지 않는다.
+   */
+  private updateActionNotes(songTime: number): void {
+    const notes = this.chart.notes;
+
+    if (!this.activeHold && !this.activeMash) {
+      while (this.actionCursor < notes.length) {
+        const n = notes[this.actionCursor];
+        if (noteState.has(n) || (n.kind !== 'hold' && n.kind !== 'mash')) {
+          this.actionCursor++;
+          continue;
+        }
+        if (n.time > songTime) break; // 아직 시작 전 — 다음 프레임에 다시 확인
+        if (n.kind === 'hold') {
+          this.activeHold = n;
+          this.holdHeldTime = 0;
+          this.holdLastSongTime = n.time;
+        } else {
+          this.activeMash = n;
+          this.mashCount = 0;
+        }
+        this.actionCursor++;
+        break;
+      }
+    }
+
+    if (this.activeHold) {
+      const held = this.autoplay || this.input.isDown;
+      const delta = Math.max(0, songTime - this.holdLastSongTime);
+      if (held) this.holdHeldTime += delta;
+      this.holdLastSongTime = songTime;
+      const end = this.activeHold.holdEnd ?? this.activeHold.time;
+      const total = Math.max(0.001, end - this.activeHold.time);
+      this.hud.holdActive = true;
+      this.hud.holdProgress = Math.min(1, this.holdHeldTime / total);
+      if (songTime >= end) {
+        const frac = this.hud.holdProgress;
+        const kind: Judgement = frac >= 0.92 ? 'PERFECT' : frac >= 0.75 ? 'GREAT' : frac >= 0.45 ? 'GOOD' : 'MISS';
+        this.resolveNote(this.activeHold, kind, 0);
+        this.activeHold = null;
+        this.hud.holdActive = false;
+      }
+    }
+
+    if (this.activeMash) {
+      const end = this.activeMash.mashEnd ?? this.activeMash.time;
+      const target = this.activeMash.mashTarget ?? 1;
+      if (this.autoplay) {
+        const total = Math.max(0.001, end - this.activeMash.time);
+        this.mashCount = Math.min(target, Math.ceil(((songTime - this.activeMash.time) / total) * target));
+      }
+      this.hud.mashActive = true;
+      this.hud.mashCount = this.mashCount;
+      this.hud.mashTarget = target;
+      if (songTime >= end) {
+        const ratio = this.mashCount / target;
+        const kind: Judgement = ratio >= 1 ? 'PERFECT' : ratio >= 0.75 ? 'GREAT' : ratio >= 0.4 ? 'GOOD' : 'MISS';
+        this.resolveNote(this.activeMash, kind, 0);
+        this.activeMash = null;
+        this.hud.mashActive = false;
+      }
     }
   }
 
@@ -552,29 +686,39 @@ export class Game {
 
   /**
    * 위치 인지: 지금 지나는 구역(아파트 단지 등) 이름을 HUD 에 계속 띄우고,
-   * 주요 랜드마크에 처음 가까워지는 순간 이름 배너를 한 번 큐에 넣는다.
+   * 처음 들어오는 구역·처음 가까워지는 랜드마크마다 이름 배너를 큐에 넣는다.
+   * 랜드마크는 큰 건물일수록 훨씬 멀리서부터 알아볼 수 있다는 점을 반영해
+   * 트리거 반경을 높이에 비례해 키운다 — 555m 롯데월드타워는 1km 밖에서도 뜬다.
    */
   private updateLocationAwareness(): void {
     const zone = this.city.zoneAt(this.pos.x, this.pos.z);
     if (zone !== this.zoneName) {
       this.zoneName = zone;
       this.hud.place = zone;
+      if (zone && !this.announcedZones.has(zone)) {
+        this.announcedZones.add(zone);
+        this.calloutQueue.push({ kind: 'area', title: zone, subtitle: '지나는 구역' });
+      }
     }
 
     for (const b of this.landmarksList) {
-      if (this.announcedLandmarks.has(b)) continue;
-      const radius = Math.max(b.w, b.d) * 0.7 + 260;
+      if (this.announcedLandmarks.has(b) || !b.name) continue;
+      const radius = Math.max(b.w, b.d) + b.height * 1.1 + 420;
       const dx = b.x - this.pos.x;
       const dz = b.z - this.pos.z;
       if (dx * dx + dz * dz > radius * radius) continue;
       this.announcedLandmarks.add(b);
-      if (b.name) this.calloutQueue.push(b.name);
+      const subtitle = b.height >= 1 ? `${Math.round(b.height)}m · ${b.floors}층` : '랜드마크';
+      this.calloutQueue.push({ kind: 'landmark', title: b.name, subtitle });
     }
 
     if (this.elapsed >= this.calloutBusyUntil && this.calloutQueue.length > 0) {
-      this.hud.calloutTitle = this.calloutQueue.shift()!;
+      const c = this.calloutQueue.shift()!;
+      this.hud.calloutKind = c.kind;
+      this.hud.calloutTitle = c.title;
+      this.hud.calloutSubtitle = c.subtitle;
       this.hud.calloutAt = this.elapsed;
-      this.calloutBusyUntil = this.elapsed + 3.2;
+      this.calloutBusyUntil = this.elapsed + (c.kind === 'landmark' ? 4.0 : 2.4);
     }
   }
 
@@ -729,14 +873,20 @@ export class Game {
             window: this.windows.good,
           });
         }
-      } else if (airs.length < 14) {
+      } else if (n.kind === 'air' && airs.length < 14) {
         const span = seg.t1 - seg.t0 || 1;
         const u = Math.max(0, Math.min(1, (n.time - seg.t0) / span));
         swingPoint(seg, Game.easeSwing(u), this.tmpVec);
         airs.push({ pos: new Vector3(this.tmpVec.x, this.tmpVec.y, this.tmpVec.z), remain });
       }
+      // hold/mash 는 3D 프리뷰 링 대신 플레이어에게 붙는 액션 이펙트로 표현한다
     }
     this.markers.update(this.chase.camera, this.elapsed, anchors, airs);
+
+    if (this.hud.holdActive) this.markers.showHold(this.pos, this.chase.camera, this.hud.holdProgress);
+    else if (this.hud.mashActive) {
+      this.markers.showMash(this.pos, this.chase.camera, this.elapsed, this.hud.mashCount / this.hud.mashTarget);
+    } else this.markers.hideAction();
   }
 
   private updateHud(songTime: number): void {
@@ -759,7 +909,8 @@ export class Game {
       const remain = n.time - songTime;
       if (remain < -0.25) continue;
       if (remain > 1.9) break;
-      h.lane.push({ remain, kind: n.kind, hit: noteState.get(n) ?? null });
+      const holdEndRemain = n.kind === 'hold' ? (n.holdEnd ?? n.time) - songTime : undefined;
+      h.lane.push({ remain, kind: n.kind, hit: noteState.get(n) ?? null, holdEndRemain });
     }
   }
 

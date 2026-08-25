@@ -206,6 +206,105 @@ export class Voices {
     hp.connect(g).connect(this.bus);
   }
 
+  /** 크래시 심벌. 섹션이 바뀌는 순간(코러스 진입 등)에 한 방 터뜨린다. */
+  crash(t: number, gain = 0.32): void {
+    const ctx = this.e.ctx;
+    const n = this.e.noiseSource();
+    const hp = ctx.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.value = 4200;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(gain, t + 0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 1.6);
+    n.connect(hp).connect(g).connect(this.bus);
+    n.start(t);
+    n.stop(t + 1.7);
+    // 배음 몇 개를 살짝 섞어 순수 노이즈보다 금속성이 나게 한다
+    for (const ratio of [2.4, 3.7, 5.1]) {
+      const o = ctx.createOscillator();
+      o.type = 'square';
+      o.frequency.value = 900 * ratio;
+      const og = ctx.createGain();
+      og.gain.setValueAtTime(0.0001, t);
+      og.gain.exponentialRampToValueAtTime(gain * 0.15, t + 0.006);
+      og.gain.exponentialRampToValueAtTime(0.0001, t + 0.9);
+      o.connect(og).connect(this.bus);
+      o.start(t);
+      o.stop(t + 1.0);
+    }
+  }
+
+  /** 라이드 심벌. 코러스 구간에서 하이햇 대신 은은하게 지속시켜 공간을 채운다. */
+  ride(t: number, gain = 0.14): void {
+    const ctx = this.e.ctx;
+    const n = this.e.noiseSource();
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'highpass';
+    bp.frequency.value = 6000;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(gain, t + 0.003);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
+    n.connect(bp).connect(g).connect(this.bus);
+    n.start(t);
+    n.stop(t + 0.55);
+    const bell = ctx.createOscillator();
+    bell.type = 'triangle';
+    bell.frequency.value = 5200;
+    const bg = ctx.createGain();
+    bg.gain.setValueAtTime(0.0001, t);
+    bg.gain.exponentialRampToValueAtTime(gain * 0.3, t + 0.003);
+    bg.gain.exponentialRampToValueAtTime(0.0001, t + 0.4);
+    bell.connect(bg).connect(this.bus);
+    bell.start(t);
+    bell.stop(t + 0.45);
+  }
+
+  /**
+   * 리드 신스. 아르페지오(pluck)보다 오래 끌고 유니즌을 더 두껍게 쌓아
+   * 코러스에서 실제 멜로디 훅을 노래하듯 들려준다.
+   */
+  lead(t: number, freq: number, dur: number, gain = 0.2): void {
+    const ctx = this.e.ctx;
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.setValueAtTime(freq * 3 + 1200, t);
+    lp.frequency.exponentialRampToValueAtTime(Math.max(freq * 1.4, 500), t + dur);
+    lp.Q.value = 2;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(gain, t + 0.02);
+    g.gain.setValueAtTime(gain, t + Math.max(0, dur - 0.08));
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    for (const det of [-10, -3, 3, 10]) {
+      const o = ctx.createOscillator();
+      o.type = 'sawtooth';
+      o.frequency.value = freq;
+      o.detune.value = det;
+      o.connect(lp);
+      o.start(t);
+      o.stop(t + dur + 0.08);
+    }
+    lp.connect(g).connect(this.bus);
+  }
+
+  /** 순수 사인 서브베이스. 코러스에서 저음을 두껍게 받쳐 준다. */
+  subBass(t: number, freq: number, dur: number, gain = 0.3): void {
+    const ctx = this.e.ctx;
+    const o = ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(freq / 2, t);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(gain, t + 0.015);
+    g.gain.setValueAtTime(gain, t + dur * 0.75);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(this.bus);
+    o.start(t);
+    o.stop(t + dur + 0.02);
+  }
+
   /** 상승 노이즈 스윕 (드롭 직전 빌드업) */
   sweep(t: number, dur: number, gain = 0.2): void {
     const n = this.e.noiseSource();

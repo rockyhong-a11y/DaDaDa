@@ -34,7 +34,14 @@ export class Hud {
   private readonly judgeOff: HTMLElement;
   private readonly placeEl: HTMLElement;
   private readonly calloutWrap: HTMLElement;
+  private readonly calloutTag: HTMLElement;
   private readonly calloutEl: HTMLElement;
+  private readonly calloutSub: HTMLElement;
+  private readonly holdWrap: HTMLElement;
+  private readonly holdBar: HTMLElement;
+  private readonly mashWrap: HTMLElement;
+  private readonly mashCountEl: HTMLElement;
+  private readonly mashTargetEl: HTMLElement;
   private readonly lane: HTMLElement;
   private readonly hitline: HTMLElement;
   private readonly progBar: HTMLElement;
@@ -66,7 +73,15 @@ export class Hud {
         <div class="hud__alt-row spd"><b>0</b><em>km/h</em></div>
       </div>
       <div class="hud__judge"><b>PERFECT</b><span>+0 ms</span></div>
-      <div class="hud__callout"><span class="tag">랜드마크</span><b></b></div>
+      <div class="hud__callout"><span class="tag"></span><b></b><em></em></div>
+      <div class="hud__action hold" style="display:none">
+        <span>HOLD</span>
+        <div class="bar"><i style="width:0%"></i></div>
+      </div>
+      <div class="hud__action mash" style="display:none">
+        <span>연타!</span>
+        <b><em>0</em> / <em class="target">1</em></b>
+      </div>
       <div class="lane">
         <div class="lane__track"></div>
         <div class="lane__hitline"></div>
@@ -90,7 +105,14 @@ export class Hud {
     this.judgeOff = q('.hud__judge span');
     this.placeEl = q('.hud__stage small.place');
     this.calloutWrap = q('.hud__callout');
+    this.calloutTag = q('.hud__callout .tag');
     this.calloutEl = q('.hud__callout b');
+    this.calloutSub = q('.hud__callout em');
+    this.holdWrap = q('.hud__action.hold');
+    this.holdBar = q('.hud__action.hold .bar i');
+    this.mashWrap = q('.hud__action.mash');
+    this.mashCountEl = q('.hud__action.mash em:not(.target)');
+    this.mashTargetEl = q('.hud__action.mash em.target');
     this.lane = q('.lane');
     this.hitline = q('.lane__hitline');
     this.progBar = q('.hud__progress .bar i');
@@ -133,6 +155,16 @@ export class Hud {
     this.timeEl.textContent = fmtTime(Math.max(0, s.time));
     this.totalEl.textContent = fmtTime(s.duration);
 
+    this.holdWrap.style.display = s.holdActive ? '' : 'none';
+    if (s.holdActive) this.holdBar.style.width = `${Math.round(s.holdProgress * 100)}%`;
+
+    this.mashWrap.style.display = s.mashActive ? '' : 'none';
+    if (s.mashActive) {
+      this.mashCountEl.textContent = String(Math.min(s.mashCount, s.mashTarget));
+      this.mashTargetEl.textContent = String(s.mashTarget);
+      this.mashWrap.classList.toggle('full', s.mashCount >= s.mashTarget);
+    }
+
     if (s.lastJudge && s.lastJudgeAt !== this.lastJudgeAt) {
       this.lastJudgeAt = s.lastJudgeAt;
       this.judgeEl.textContent = JUDGE_LABEL[s.lastJudge];
@@ -152,10 +184,13 @@ export class Hud {
 
     if (s.calloutTitle && s.calloutAt !== this.lastCalloutAt) {
       this.lastCalloutAt = s.calloutAt;
+      this.calloutWrap.dataset.kind = s.calloutKind ?? 'landmark';
+      this.calloutTag.textContent = s.calloutKind === 'area' ? '지나는 구역' : '랜드마크';
       this.calloutEl.textContent = s.calloutTitle;
-      this.calloutWrap.classList.remove('show');
+      this.calloutSub.textContent = s.calloutSubtitle;
+      this.calloutWrap.classList.remove('show', 'show-area');
       void this.calloutWrap.offsetWidth;
-      this.calloutWrap.classList.add('show');
+      this.calloutWrap.classList.add(s.calloutKind === 'area' ? 'show-area' : 'show');
     }
 
     if (beatIndex !== this.lastBeat) {
@@ -185,9 +220,17 @@ export class Hud {
       const node = this.noteEl(i);
       const x = half + (n.remain / LANE_LEAD) * half;
       node.style.display = '';
-      node.style.left = `${x}px`;
-      node.className = `lane__note${n.kind === 'air' ? ' air' : ''}`;
+      node.className = `lane__note ${n.kind}`;
       node.style.opacity = n.remain > LANE_LEAD ? '0' : '1';
+      if (n.kind === 'hold' && n.holdEndRemain !== undefined) {
+        // 시작~종료 구간을 잇는 막대로 그려 "이 구간 내내 눌러야 한다"는 걸 보여 준다
+        const xEnd = half + (Math.max(0, n.holdEndRemain) / LANE_LEAD) * half;
+        node.style.left = `${xEnd}px`;
+        node.style.width = `${Math.max(4, x - xEnd)}px`;
+      } else {
+        node.style.left = `${x}px`;
+        node.style.width = '';
+      }
     }
   }
 }

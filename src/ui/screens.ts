@@ -69,7 +69,6 @@ export function stageSelectScreen(
   onPick: (s: StageDef) => void,
   onBack: () => void,
 ): HTMLElement {
-  const ids = stages.map((s) => s.id);
   const root = el(`
     <div class="screen screen--showcase">
       <div class="select">
@@ -78,17 +77,16 @@ export function stageSelectScreen(
           <button class="btn btn--ghost" data-act="back">← 타이틀</button>
         </div>
         <div class="stage-grid"></div>
-        <p class="hint">이전 스테이지를 클리어하면 다음 스테이지가 열린다. 건물 배치와 높이는 실제 서울 좌표를 기준으로 생성된다.</p>
+        <p class="hint">다섯 스테이지 모두 처음부터 자유롭게 고를 수 있다. 건물 배치와 높이는 실제 서울 좌표를 기준으로 생성된다.</p>
       </div>
     </div>
   `);
   const grid = root.querySelector('.stage-grid') as HTMLElement;
 
   stages.forEach((s, i) => {
-    const unlocked = store.isUnlocked(i, ids);
     const rec = store.record(s.id);
     const card = el<HTMLButtonElement>(`
-      <button class="stage-card${unlocked ? '' : ' is-locked'}" style="--accent:${ACCENTS[i % ACCENTS.length]}">
+      <button class="stage-card" style="--accent:${ACCENTS[i % ACCENTS.length]}">
         <div class="stage-card__no">STAGE ${String(i + 1).padStart(2, '0')}</div>
         <div class="stage-card__name">${s.name}</div>
         <div class="stage-card__district">${s.district}</div>
@@ -102,10 +100,9 @@ export function stageSelectScreen(
             ? `<div class="stage-card__best"><span class="rank-chip" data-rank="${rec.rank}">${rec.rank}</span>${rec.score.toLocaleString('ko-KR')} · ${(rec.acc * 100).toFixed(1)}%</div>`
             : `<div class="stage-card__best" style="color:var(--muted)">기록 없음</div>`
         }
-        ${unlocked ? '' : '<div class="lock-note">🔒 잠김</div>'}
       </button>
     `);
-    if (unlocked) card.addEventListener('click', () => onPick(s));
+    card.addEventListener('click', () => onPick(s));
     grid.appendChild(card);
   });
 
@@ -206,8 +203,14 @@ export function howToScreen(onClose: () => void): HTMLElement {
           <p><b style="color:var(--cyan)">◆ 스윙 노트</b> — 레인의 청록색 마름모. 판정선에 닿는 순간
           <kbd>Space</kbd>·<kbd>J</kbd> 또는 화면 탭. 새 웹을 쏴 다음 건물로 넘어간다.</p>
           <p><b style="color:var(--magenta)">● 에어 노트</b> — 분홍색 원. 스윙 도중 공중에서 넣는 트릭. 점수와 모멘텀이 오른다.</p>
-          <p><b>판정</b> — PERFECT / GREAT / GOOD / MISS. 스테이지가 올라갈수록 판정 창이 좁아진다.</p>
-          <p><b>추락</b> — 미스가 쌓이면 고도가 꺼진다. 스윙 노트를 3연속 놓치거나 SWING POWER 가 0이 되면 추락해 실패한다.</p>
+          <p><b style="color:var(--green)">▬ 홀드</b> — 초록 막대. 막대가 이어지는 동안 버튼을 계속 누르고 있어야 한다.
+          중간에 놓으면 그만큼 판정이 깎인다.</p>
+          <p><b style="color:var(--amber)">◆ 연타</b> — 주황 마름모가 흔들리며 나타난다. 짧은 시간 안에 최대한 빠르게
+          여러 번 눌러 목표 횟수를 채운다. 화면 중앙에 남은 횟수가 뜬다.</p>
+          <p><b>판정</b> — PERFECT / GREAT / GOOD / MISS. 스테이지가 올라갈수록 판정 창이 좁아진다.
+          홀드·연타는 스윙만큼 점수·정확도에 크게 반영된다.</p>
+          <p><b>추락</b> — 미스가 쌓이면 고도가 꺼진다. 스윙 노트를 3연속 놓치거나 SWING POWER 가 0이 되면 추락해 실패한다.
+          (홀드·연타를 그르쳐도 추락 카운트는 올라가지 않는다 — 안심하고 도전하자.)</p>
           <p><b>고도</b> — 비행 고도는 주변 건물 높이를 따라간다. 목동에서는 40m, 잠실 롯데월드타워 정상에서는 555m 까지 올라간다.</p>
           <p><b>피날레</b> — 각 스테이지의 마지막 구간은 랜드마크를 나선으로 타고 오르는 등반 구간이다.</p>
         </div>

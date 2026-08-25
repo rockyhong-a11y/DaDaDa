@@ -25,6 +25,9 @@ export class NoteMarkers {
   private readonly rings: { mesh: Mesh; mat: MeshBasicMaterial }[] = [];
   private readonly airs: { mesh: Mesh; mat: MeshBasicMaterial }[] = [];
   private readonly burst: Burst;
+  /** 홀드/연타 진행 중 플레이어에게 붙는 링. 위치가 아니라 상태를 보여 준다. */
+  private readonly actionMesh: Mesh;
+  private readonly actionMat: MeshBasicMaterial;
 
   constructor(ringCount = 6, airCount = 14) {
     const ringGeo = new TorusGeometry(1, 0.055, 8, 40);
@@ -57,11 +60,48 @@ export class NoteMarkers {
     }
     this.burst = new Burst();
     this.group.add(this.burst.points);
+
+    const actionGeo = new TorusGeometry(1, 0.09, 10, 48);
+    this.actionMat = new MeshBasicMaterial({
+      transparent: true,
+      depthWrite: false,
+      blending: AdditiveBlending,
+    });
+    this.actionMesh = new Mesh(actionGeo, this.actionMat);
+    this.actionMesh.visible = false;
+    this.actionMesh.frustumCulled = false;
+    this.group.add(this.actionMesh);
   }
 
   hideAll(): void {
     for (const r of this.rings) r.mesh.visible = false;
     for (const a of this.airs) a.mesh.visible = false;
+    this.actionMesh.visible = false;
+  }
+
+  /** 홀드 진행 중: 채워질수록 밝아지고 살짝 오므라드는 초록 링을 플레이어에 붙인다. */
+  showHold(pos: Vector3, camera: Camera, progress: number): void {
+    this.actionMesh.visible = true;
+    this.actionMesh.position.copy(pos);
+    this.actionMesh.lookAt(camera.position);
+    this.actionMesh.scale.setScalar(3.4 - progress * 0.7);
+    this.actionMat.color.setHex(0x6bff9e);
+    this.actionMat.opacity = 0.45 + progress * 0.5;
+  }
+
+  /** 연타 진행 중: 탭마다 떠는 듯 흔들리는 주황 링. */
+  showMash(pos: Vector3, camera: Camera, time: number, progress: number): void {
+    this.actionMesh.visible = true;
+    this.actionMesh.position.copy(pos);
+    this.actionMesh.lookAt(camera.position);
+    const pulse = 1 + Math.sin(time * 26) * 0.09 * (1 - progress * 0.5);
+    this.actionMesh.scale.setScalar((2.6 + progress * 1.3) * pulse);
+    this.actionMat.color.setHex(0xffb457);
+    this.actionMat.opacity = 0.55 + progress * 0.35;
+  }
+
+  hideAction(): void {
+    this.actionMesh.visible = false;
   }
 
   /**
@@ -123,6 +163,8 @@ export class NoteMarkers {
       a.mat.dispose();
     }
     this.burst.dispose();
+    this.actionMesh.geometry.dispose();
+    this.actionMat.dispose();
   }
 }
 

@@ -23,8 +23,8 @@ for (const s of STAGES) {
   const landmarks = city.buildings.filter((b) => b.kind === 'landmark');
   let announced = 0;
   for (const b of landmarks) {
-    // 대략적인 근접 반경 추정(간단 체크용): 스윙 구간이 랜드마크 반경 안을 지나는지
-    const r = Math.max(b.w, b.d) * 0.7 + 260;
+    // Game.updateLocationAwareness 와 동일한 반경 공식 (건물 높이에 비례)
+    const r = Math.max(b.w, b.d) + b.height * 1.1 + 420;
     const hit = chart.segments.some((seg) => {
       if (seg.finale) return false;
       const dx = seg.from.x - b.x;
@@ -33,5 +33,5 @@ for (const s of STAGES) {
     });
     if (hit) announced++;
   }
-  console.log(`  landmark callouts likely: ${announced}/${landmarks.length}`);
+  console.log(`  landmark callouts likely: ${announced}/${landmarks.length} (구역 배너 ${seen.size}개 추가)`);
 }

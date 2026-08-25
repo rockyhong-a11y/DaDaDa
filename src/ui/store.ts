@@ -116,11 +116,9 @@ export class Store {
     return better;
   }
 
-  /** 해당 인덱스의 스테이지가 열려 있는가 (직전 스테이지를 클리어하면 열린다) */
-  isUnlocked(index: number, ids: string[]): boolean {
-    if (index === 0) return true;
-    const prev = this.data.records[ids[index - 1]];
-    return !!prev?.cleared;
+  /** 모든 스테이지를 처음부터 자유롭게 고를 수 있다 (진행도 잠금 없음). */
+  isUnlocked(_index: number, _ids: string[]): boolean {
+    return true;
   }
 
   resetAll(): void {

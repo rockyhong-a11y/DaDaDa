@@ -293,15 +293,10 @@ kbd {
   pointer-events: none;
 }
 
-.stage-card:hover:not(.is-locked) {
+.stage-card:hover {
   transform: translateY(-3px);
   border-color: rgba(130, 200, 255, 0.5);
   box-shadow: 0 20px 46px -22px rgba(60, 180, 255, 0.75);
-}
-
-.stage-card.is-locked {
-  opacity: 0.42;
-  cursor: not-allowed;
 }
 
 .stage-card__no {
@@ -402,14 +397,6 @@ kbd {
 }
 .rank-chip[data-rank='D'] {
   background: #ff8098;
-}
-
-.lock-note {
-  position: absolute;
-  top: 14px;
-  right: 14px;
-  font-size: 11px;
-  color: var(--muted);
 }
 
 /* ---------------------------------------------------------- HUD */
@@ -684,8 +671,39 @@ kbd {
   text-shadow: 0 0 18px rgba(255, 180, 87, 0.45);
 }
 
+.hud__callout em {
+  font-style: normal;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: var(--muted);
+}
+
+.hud__callout em:empty {
+  display: none;
+}
+
+/* 'area' = 처음 지나는 구역. 랜드마크보다 차분한 톤으로 구분한다. */
+.hud__callout[data-kind='area'] {
+  border-color: rgba(56, 246, 255, 0.3);
+  background: linear-gradient(180deg, rgba(8, 16, 20, 0.78), rgba(4, 9, 10, 0.6));
+}
+
+.hud__callout[data-kind='area'] .tag {
+  color: var(--cyan);
+}
+
+.hud__callout[data-kind='area'] b {
+  font-size: clamp(14px, 2.2vw, 18px);
+  text-shadow: 0 0 16px rgba(56, 246, 255, 0.4);
+}
+
 .hud__callout.show {
-  animation: callout-pop 3.2s cubic-bezier(0.2, 1, 0.35, 1) both;
+  animation: callout-pop 4s cubic-bezier(0.2, 1, 0.35, 1) both;
+}
+
+.hud__callout.show-area {
+  animation: callout-pop 2.4s cubic-bezier(0.2, 1, 0.35, 1) both;
 }
 
 @keyframes callout-pop {
@@ -704,6 +722,78 @@ kbd {
   100% {
     opacity: 0;
     transform: translate(-50%, -6px);
+  }
+}
+
+/* 홀드 · 연타 액션 오버레이 */
+
+.hud__action {
+  position: absolute;
+  left: 50%;
+  top: 58%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+  text-align: center;
+}
+
+.hud__action span {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.3em;
+}
+
+.hud__action.hold span {
+  color: var(--green);
+}
+
+.hud__action.hold .bar {
+  width: 140px;
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.45);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+}
+
+.hud__action.hold .bar i {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, rgba(107, 255, 158, 0.6), var(--green));
+  transition: width 0.06s linear;
+}
+
+.hud__action.mash span {
+  color: var(--amber);
+  animation: mash-shake 0.22s ease-in-out infinite alternate;
+}
+
+.hud__action.mash b {
+  font-size: 30px;
+  font-weight: 900;
+  color: var(--text);
+  text-shadow: 0 0 20px rgba(255, 180, 87, 0.6);
+}
+
+.hud__action.mash em {
+  font-style: normal;
+}
+
+.hud__action.mash.full b {
+  color: var(--green);
+  text-shadow: 0 0 22px rgba(107, 255, 158, 0.75);
+}
+
+@keyframes mash-shake {
+  from {
+    transform: translateX(-2px);
+  }
+  to {
+    transform: translateX(2px);
   }
 }
 
@@ -772,6 +862,35 @@ kbd {
   background: var(--magenta);
   box-shadow: 0 0 12px rgba(255, 79, 196, 0.8);
   transform: none;
+}
+
+/* hold 는 시작~종료를 잇는 막대다. left/width 는 JS 가 직접 지정한다. */
+.lane__note.hold {
+  height: 9px;
+  margin: -4.5px 0 0 0;
+  border-radius: 5px;
+  background: linear-gradient(90deg, rgba(107, 255, 158, 0.3), var(--green));
+  box-shadow: 0 0 12px rgba(107, 255, 158, 0.65);
+  transform: none;
+}
+
+.lane__note.mash {
+  width: 11px;
+  height: 11px;
+  margin: -5.5px 0 0 -5.5px;
+  border-radius: 3px;
+  background: var(--amber);
+  box-shadow: 0 0 12px rgba(255, 180, 87, 0.85);
+  animation: mash-note-pulse 0.4s ease-in-out infinite alternate;
+}
+
+@keyframes mash-note-pulse {
+  from {
+    transform: rotate(45deg) scale(0.85);
+  }
+  to {
+    transform: rotate(45deg) scale(1.18);
+  }
 }
 
 .lane__label {

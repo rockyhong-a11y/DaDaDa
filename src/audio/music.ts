@@ -3,6 +3,15 @@ import type { Conductor } from './conductor';
 import { Voices, midiToFreq } from './voices';
 import type { StageDef } from '../data/types';
 
+/** 리드 멜로디 한 음. step 은 2마디(32칸) 프레이즈 안에서의 16분음표 위치. */
+interface LeadHit {
+  step: number;
+  /** scaleTones() 배열의 인덱스 */
+  degree: number;
+  /** 길이(16분음표 개수). 생략 시 3. */
+  len?: number;
+}
+
 /**
  * 스타일 프리셋. 16분음표 16칸(=1마디) 문자열 패턴으로 리듬을 기술한다.
  *   x = 강타, o = 약타, - = 쉼
@@ -16,13 +25,18 @@ interface StylePreset {
   bass: string;
   /** 아르페지오/플럭 발음 위치 */
   arp: string;
-  /** 4마디 코드 진행 (자연단음계 도수의 반음 오프셋) */
+  /** 벌스에서 쓰는 코드 진행 (자연단음계 도수의 반음 오프셋, 4개) */
   chords: number[];
+  /** 코러스에서 쓰는 코드 진행. 벌스와 색이 달라야 "구간이 바뀌었다"는 느낌이 난다. */
+  chordsB: number[];
   padGain: number;
   bassGain: number;
   arpOctave: number;
   useReese: boolean;
   clapInsteadOfSnare: boolean;
+  /** 코러스에서 노래하는 리드 훅. 두 개를 번갈아 써서 반복해도 덜 기계적으로 들리게 한다. */
+  leadPhrases: LeadHit[][];
+  leadOctave: number;
 }
 
 const PRESETS: Record<StageDef['musicStyle'], StylePreset> = {
@@ -34,11 +48,30 @@ const PRESETS: Record<StageDef['musicStyle'], StylePreset> = {
     bass: 'r---r---5---8---',
     arp: '--x-x---x-x---x-',
     chords: [0, 8, 3, 10],
+    chordsB: [8, 3, 10, 5],
     padGain: 0.11,
     bassGain: 0.4,
     arpOctave: 1,
     useReese: false,
     clapInsteadOfSnare: false,
+    leadOctave: 1,
+    leadPhrases: [
+      [
+        { step: 2, degree: 2, len: 3 },
+        { step: 8, degree: 3, len: 2 },
+        { step: 12, degree: 1, len: 3 },
+        { step: 18, degree: 4, len: 2 },
+        { step: 24, degree: 2, len: 4 },
+        { step: 30, degree: 1, len: 2 },
+      ],
+      [
+        { step: 0, degree: 3, len: 3 },
+        { step: 6, degree: 2, len: 2 },
+        { step: 14, degree: 4, len: 3 },
+        { step: 20, degree: 3, len: 2 },
+        { step: 26, degree: 1, len: 4 },
+      ],
+    ],
   },
   synthwave: {
     kick: 'x---x---x---x---',
@@ -48,11 +81,35 @@ const PRESETS: Record<StageDef['musicStyle'], StylePreset> = {
     bass: 'r-r-r-r-8-8-r-r-',
     arp: 'x-x-x-x-x-x-x-x-',
     chords: [0, 10, 8, 10],
+    chordsB: [0, 5, 10, 8],
     padGain: 0.12,
     bassGain: 0.42,
     arpOctave: 2,
     useReese: false,
     clapInsteadOfSnare: false,
+    leadOctave: 2,
+    leadPhrases: [
+      [
+        { step: 0, degree: 0, len: 2 },
+        { step: 4, degree: 3, len: 2 },
+        { step: 8, degree: 4, len: 2 },
+        { step: 12, degree: 2, len: 2 },
+        { step: 16, degree: 0, len: 2 },
+        { step: 20, degree: 3, len: 2 },
+        { step: 24, degree: 4, len: 2 },
+        { step: 28, degree: 1, len: 4 },
+      ],
+      [
+        { step: 0, degree: 4, len: 2 },
+        { step: 4, degree: 2, len: 2 },
+        { step: 8, degree: 0, len: 2 },
+        { step: 12, degree: 3, len: 2 },
+        { step: 16, degree: 4, len: 2 },
+        { step: 22, degree: 1, len: 2 },
+        { step: 26, degree: 2, len: 2 },
+        { step: 30, degree: 0, len: 4 },
+      ],
+    ],
   },
   kpop: {
     kick: 'x-----x-x-------',
@@ -62,11 +119,35 @@ const PRESETS: Record<StageDef['musicStyle'], StylePreset> = {
     bass: 'r---r-r-5---8-r-',
     arp: 'x-xx-x-xx-x-x-xx',
     chords: [0, 8, 3, 10],
+    chordsB: [10, 8, 0, 5],
     padGain: 0.09,
     bassGain: 0.44,
     arpOctave: 2,
     useReese: false,
     clapInsteadOfSnare: true,
+    leadOctave: 2,
+    leadPhrases: [
+      [
+        { step: 0, degree: 2, len: 2 },
+        { step: 3, degree: 2, len: 1 },
+        { step: 6, degree: 3, len: 3 },
+        { step: 12, degree: 4, len: 4 },
+        { step: 18, degree: 3, len: 1 },
+        { step: 20, degree: 2, len: 1 },
+        { step: 22, degree: 1, len: 2 },
+        { step: 26, degree: 2, len: 6 },
+      ],
+      [
+        { step: 0, degree: 4, len: 2 },
+        { step: 3, degree: 4, len: 1 },
+        { step: 6, degree: 2, len: 3 },
+        { step: 12, degree: 1, len: 4 },
+        { step: 18, degree: 2, len: 1 },
+        { step: 20, degree: 3, len: 1 },
+        { step: 22, degree: 4, len: 2 },
+        { step: 26, degree: 3, len: 6 },
+      ],
+    ],
   },
   dnb: {
     kick: 'x------x--x-----',
@@ -76,11 +157,39 @@ const PRESETS: Record<StageDef['musicStyle'], StylePreset> = {
     bass: 'r-------8-----5-',
     arp: '--x---x-----x---',
     chords: [0, 10, 8, 7],
+    chordsB: [0, 7, 5, 10],
     padGain: 0.07,
     bassGain: 0.46,
     arpOctave: 2,
     useReese: true,
     clapInsteadOfSnare: false,
+    leadOctave: 1,
+    leadPhrases: [
+      [
+        { step: 1, degree: 1, len: 1 },
+        { step: 4, degree: 2, len: 1 },
+        { step: 7, degree: 0, len: 1 },
+        { step: 10, degree: 3, len: 1 },
+        { step: 14, degree: 1, len: 2 },
+        { step: 17, degree: 2, len: 1 },
+        { step: 20, degree: 4, len: 1 },
+        { step: 23, degree: 2, len: 1 },
+        { step: 26, degree: 0, len: 1 },
+        { step: 29, degree: 1, len: 2 },
+      ],
+      [
+        { step: 0, degree: 2, len: 1 },
+        { step: 3, degree: 1, len: 1 },
+        { step: 6, degree: 4, len: 1 },
+        { step: 9, degree: 2, len: 1 },
+        { step: 13, degree: 0, len: 2 },
+        { step: 18, degree: 3, len: 1 },
+        { step: 21, degree: 1, len: 1 },
+        { step: 24, degree: 2, len: 1 },
+        { step: 27, degree: 4, len: 1 },
+        { step: 30, degree: 2, len: 2 },
+      ],
+    ],
   },
   hardcore: {
     kick: 'x---x---x---x---',
@@ -90,11 +199,43 @@ const PRESETS: Record<StageDef['musicStyle'], StylePreset> = {
     bass: 'r-r-r-r-r-r-r-r-',
     arp: 'x-x-x-x-x-x-x-x-',
     chords: [0, 8, 5, 10],
+    chordsB: [0, 10, 7, 5],
     padGain: 0.08,
     bassGain: 0.5,
     arpOctave: 2,
     useReese: false,
     clapInsteadOfSnare: false,
+    leadOctave: 2,
+    leadPhrases: [
+      [
+        { step: 0, degree: 0, len: 1 },
+        { step: 2, degree: 0, len: 1 },
+        { step: 4, degree: 2, len: 1 },
+        { step: 6, degree: 0, len: 1 },
+        { step: 8, degree: 4, len: 2 },
+        { step: 12, degree: 0, len: 1 },
+        { step: 14, degree: 0, len: 1 },
+        { step: 16, degree: 2, len: 1 },
+        { step: 18, degree: 2, len: 1 },
+        { step: 20, degree: 4, len: 1 },
+        { step: 22, degree: 2, len: 1 },
+        { step: 24, degree: 0, len: 4 },
+      ],
+      [
+        { step: 0, degree: 4, len: 1 },
+        { step: 2, degree: 4, len: 1 },
+        { step: 4, degree: 2, len: 1 },
+        { step: 6, degree: 4, len: 1 },
+        { step: 8, degree: 0, len: 2 },
+        { step: 12, degree: 4, len: 1 },
+        { step: 14, degree: 4, len: 1 },
+        { step: 16, degree: 2, len: 1 },
+        { step: 18, degree: 2, len: 1 },
+        { step: 20, degree: 0, len: 1 },
+        { step: 22, degree: 2, len: 1 },
+        { step: 24, degree: 4, len: 4 },
+      ],
+    ],
   },
 };
 
@@ -102,6 +243,88 @@ const PRESETS: Record<StageDef['musicStyle'], StylePreset> = {
 function triad(rootOffset: number): number[] {
   const major = [3, 8, 10].includes(((rootOffset % 12) + 12) % 12);
   return major ? [0, 4, 7] : [0, 3, 7];
+}
+
+/** 리드 멜로디용 5음 스케일 (3화음 + 장식음 2개). 아르페지오보다 넓은 색을 낸다. */
+function scaleTones(rootOffset: number): number[] {
+  const major = [3, 8, 10].includes(((rootOffset % 12) + 12) % 12);
+  return major ? [0, 2, 4, 7, 9] : [0, 3, 5, 7, 10];
+}
+
+/**
+ * 곡의 매크로 구조(아케인지먼트).
+ * 인트로 → 벌스 → 빌드업 → 코러스(드롭) → 브레이크다운 벌스 → 빌드업 → 파이널 코러스
+ * 순서로, 전체 마디 수에 비례해 구간을 나눈다. 같은 16마디를 곡 끝까지 복붙하던
+ * 이전 방식과 달리, 실제 곡처럼 한 번씩만 지나가는 전개를 갖는다.
+ */
+interface Section {
+  name: string;
+  startBar: number;
+  endBar: number;
+  chords: number[];
+  intensity: number;
+  drumMode: 'sparse' | 'full' | 'roll';
+  bass: boolean;
+  subBass: boolean;
+  pad: boolean;
+  lead: boolean;
+  ride: boolean;
+  crashOnEntry: boolean;
+}
+
+const ARRANGEMENT_PLAN: {
+  name: string;
+  frac: number;
+  chords: 'A' | 'B';
+  intensity: number;
+  drumMode: Section['drumMode'];
+  bass: boolean;
+  subBass: boolean;
+  pad: boolean;
+  lead: boolean;
+  ride: boolean;
+  crash: boolean;
+}[] = [
+  { name: 'intro', frac: 0.06, chords: 'A', intensity: 0.55, drumMode: 'sparse', bass: false, subBass: false, pad: true, lead: false, ride: false, crash: false },
+  { name: 'verseA', frac: 0.24, chords: 'A', intensity: 0.75, drumMode: 'full', bass: true, subBass: false, pad: true, lead: false, ride: false, crash: true },
+  { name: 'buildA', frac: 0.06, chords: 'A', intensity: 0.85, drumMode: 'roll', bass: false, subBass: false, pad: false, lead: false, ride: false, crash: false },
+  { name: 'chorusA', frac: 0.2, chords: 'B', intensity: 1.0, drumMode: 'full', bass: true, subBass: true, pad: true, lead: true, ride: true, crash: true },
+  { name: 'verseB', frac: 0.16, chords: 'A', intensity: 0.5, drumMode: 'sparse', bass: true, subBass: false, pad: true, lead: false, ride: false, crash: false },
+  { name: 'buildB', frac: 0.06, chords: 'A', intensity: 0.9, drumMode: 'roll', bass: false, subBass: false, pad: false, lead: false, ride: false, crash: false },
+  { name: 'chorusB', frac: 0.22, chords: 'B', intensity: 1.0, drumMode: 'full', bass: true, subBass: true, pad: true, lead: true, ride: true, crash: true },
+];
+
+function buildArrangement(totalBars: number, p: StylePreset): Section[] {
+  const bars = Math.max(16, Math.round(totalBars));
+  let acc = 0;
+  const out: Section[] = [];
+  for (let i = 0; i < ARRANGEMENT_PLAN.length; i++) {
+    const step = ARRANGEMENT_PLAN[i];
+    const isLast = i === ARRANGEMENT_PLAN.length - 1;
+    const startBar = Math.round(acc);
+    acc += step.frac * bars;
+    const endBar = isLast ? bars : Math.max(startBar + 2, Math.round(acc));
+    out.push({
+      name: step.name,
+      startBar,
+      endBar,
+      chords: step.chords === 'A' ? p.chords : p.chordsB,
+      intensity: step.intensity,
+      drumMode: step.drumMode,
+      bass: step.bass,
+      subBass: step.subBass,
+      pad: step.pad,
+      lead: step.lead,
+      ride: step.ride,
+      crashOnEntry: step.crash,
+    });
+  }
+  return out;
+}
+
+function sectionAt(sections: Section[], bar: number): Section {
+  for (const s of sections) if (bar < s.endBar) return s;
+  return sections[sections.length - 1];
 }
 
 const LOOKAHEAD = 0.22; // 초. 이 시간만큼 미리 스케줄한다.
@@ -114,10 +337,12 @@ const LOOKAHEAD = 0.22; // 초. 이 시간만큼 미리 스케줄한다.
 export class MusicPlayer {
   private readonly voices: Voices;
   private readonly preset: StylePreset;
+  private readonly sections: Section[];
   private nextStep: number;
   private readonly endStep: number;
   private readonly root: number;
   private stopped = false;
+  private lastSectionName = '';
   /** 마지막으로 발음된 박 (시각 이펙트용) */
   lastBeatHit = -1;
 
@@ -133,6 +358,8 @@ export class MusicPlayer {
     this.root = stage.rootNote;
     this.nextStep = -Math.round(leadInBeats * 4);
     this.endStep = Math.round((totalBeats + 8) * 4);
+    // 하드코딩된 아웃트로(마지막 4마디)를 제외한 구간에 아케인지먼트를 편성한다
+    this.sections = buildArrangement(totalBeats / 4, this.preset);
   }
 
   /** 매 프레임 호출. 다가오는 스텝들을 미리 예약한다. */
@@ -177,67 +404,96 @@ export class MusicPlayer {
       return;
     }
 
-    // 16마디 주기 구성: 12~13마디는 빌드업, 14~15마디는 풀 드롭
-    const phase = ((bar % 16) + 16) % 16;
-    const build = phase === 15;
-    const sparse = phase === 8 || phase === 9;
-
-    // --- 드럼 ---
-    if (!build) {
-      if (p.kick[inBar] === 'x') this.voices.kick(at, sparse ? 0.7 : 1.0);
-      else if (p.kick[inBar] === 'o') this.voices.kick(at, 0.6, 0.9);
-      if (p.snare[inBar] === 'x') {
-        if (p.clapInsteadOfSnare) this.voices.clap(at, 0.62);
-        else this.voices.snare(at, sparse ? 0.5 : 0.72);
-      }
-      if (p.hat[inBar] === 'x') this.voices.hat(at, false, sparse ? 0.18 : 0.26);
-      if (p.openHat[inBar] === 'x') this.voices.hat(at, true, 0.22);
-    } else {
-      // 스네어 롤 빌드업
-      const density = inBar < 8 ? 2 : 1;
-      if (inBar % density === 0) this.voices.snare(at, 0.3 + (inBar / 16) * 0.5);
-      if (inBar === 0) this.voices.sweep(at, beatDur * 4, 0.26);
+    const section = sectionAt(this.sections, bar);
+    if (inBar === 0 && section.name !== this.lastSectionName) {
+      this.lastSectionName = section.name;
+      if (section.crashOnEntry) this.voices.crash(at, 0.26 + section.intensity * 0.1);
     }
 
-    // --- 화성 ---
-    const chordIdx = ((bar % 4) + 4) % 4;
-    const chordOffset = p.chords[chordIdx];
+    const localBar = bar - section.startBar;
+    const chordIdx = ((localBar % section.chords.length) + section.chords.length) % section.chords.length;
+    const chordOffset = section.chords[chordIdx];
     const chordRoot = this.root + chordOffset;
     const tones = triad(chordOffset);
+    const intensity = section.intensity;
+    const roll = section.drumMode === 'roll';
 
-    if (inBar === 0 && !build) {
+    // --- 드럼 ---
+    if (!roll) {
+      if (p.kick[inBar] === 'x') this.voices.kick(at, intensity);
+      else if (p.kick[inBar] === 'o') this.voices.kick(at, intensity * 0.85, 0.9);
+      if (section.drumMode === 'full' && p.snare[inBar] === 'x') {
+        if (p.clapInsteadOfSnare) this.voices.clap(at, 0.5 + intensity * 0.25);
+        else this.voices.snare(at, 0.4 + intensity * 0.35);
+      }
+      if (p.hat[inBar] === 'x') this.voices.hat(at, false, 0.14 + intensity * 0.16);
+      if (p.openHat[inBar] === 'x') this.voices.hat(at, true, 0.14 + intensity * 0.14);
+      if (section.ride && inBar % 4 === 2) this.voices.ride(at, 0.1 + intensity * 0.08);
+    } else {
+      // 스네어 롤 빌드업: 마디 후반으로 갈수록 촘촘해진다
+      const density = inBar < 8 ? 2 : 1;
+      if (inBar % density === 0) this.voices.snare(at, 0.28 + (inBar / 16) * 0.55);
+      if (inBar === 0) this.voices.sweep(at, beatDur * 4, 0.2 + intensity * 0.08);
+    }
+
+    // --- 패드 ---
+    if (section.pad && inBar === 0) {
       this.voices.pad(
         at,
         tones.map((s) => midiToFreq(chordRoot + s + 12)),
-        beatDur * 4,
-        sparse ? p.padGain * 1.4 : p.padGain,
+        beatDur * Math.min(4, section.endBar - bar),
+        0.08 + intensity * 0.06,
       );
     }
 
     // --- 베이스 ---
-    if (!build && !sparse) {
+    if (section.bass && !roll) {
       const c = p.bass[inBar];
       if (c !== '-') {
         const semi = c === 'r' ? 0 : c === '5' ? 7 : 12;
         const f = midiToFreq(chordRoot + semi - 12);
         const dur = stepDur * 2;
-        if (p.useReese) this.voices.reese(at, f, dur * 2, p.bassGain);
-        else this.voices.bass(at, f, dur, p.bassGain);
+        const g = p.bassGain * (0.55 + intensity * 0.45);
+        if (p.useReese) this.voices.reese(at, f, dur * 2, g);
+        else this.voices.bass(at, f, dur, g);
       }
     }
+    if (section.subBass && inBar === 0) {
+      this.voices.subBass(at, midiToFreq(chordRoot - 12), beatDur * 4, 0.16 + intensity * 0.12);
+    }
 
-    // --- 아르페지오 / 리드 ---
-    if (!build && p.arp[inBar] === 'x') {
+    // --- 아르페지오 ---
+    if (!roll && p.arp[inBar] === 'x') {
       const seq = [0, 1, 2, 1];
       const idx = seq[Math.floor(step / 2) % seq.length];
       const semi = tones[idx % tones.length];
       const f = midiToFreq(chordRoot + semi + 12 * p.arpOctave);
-      this.voices.pluck(at, f, stepDur * 3, sparse ? 0.1 : 0.2);
+      // 리드가 함께 노래할 땐 아르페지오를 살짝 낮춰 리드를 앞으로 내세운다
+      this.voices.pluck(at, f, stepDur * 3, (section.lead ? 0.1 : 0.18) * (0.6 + intensity * 0.4));
     }
 
-    // 드롭 마디 첫 박에 스탭 코드
-    if (phase === 0 && inBar === 0) {
-      this.voices.stab(at, tones.map((s) => midiToFreq(chordRoot + s + 12)), beatDur * 0.5, 0.18);
+    // --- 리드 멜로디 (코러스 전용 훅) ---
+    if (section.lead) {
+      const scale = scaleTones(chordOffset);
+      const phraseSet = p.leadPhrases;
+      const phrase = phraseSet[Math.floor(bar / 2) % phraseSet.length];
+      const cycleStep = ((step % 32) + 32) % 32;
+      const hit = phrase.find((h) => h.step === cycleStep);
+      if (hit) {
+        const semi = scale[hit.degree % scale.length];
+        const f = midiToFreq(chordRoot + semi + 12 * p.leadOctave);
+        this.voices.lead(at, f, stepDur * (hit.len ?? 3), 0.15 + intensity * 0.08);
+      }
+    }
+
+    // 코러스 진입 마디 첫 박에 강조 스탭 (임팩트용 "드롭" 히트)
+    if (inBar === 0 && localBar === 0 && (section.name === 'chorusA' || section.name === 'chorusB')) {
+      this.voices.stab(
+        at,
+        tones.map((s) => midiToFreq(chordRoot + s + 12)),
+        beatDur * 0.5,
+        0.14 + intensity * 0.08,
+      );
     }
   }
 }

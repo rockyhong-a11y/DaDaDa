@@ -22,12 +22,24 @@ for (const s of STAGES) {
   const avg = (a: number[]) => a.reduce((x, y) => x + y, 0) / a.length;
   console.log(
     `${s.id.padEnd(9)} len=${Math.round(c.path.length)}m dur=${c.duration.toFixed(0)}s v=${c.speed.toFixed(1)} ` +
-      `notes=${c.notes.length}(sw ${c.swingCount}/air ${c.airCount}) segs=${c.segments.length} ` +
+      `notes=${c.notes.length}(sw ${c.swingCount}/air ${c.airCount}/hold ${c.holdCount}/mash ${c.mashCount}) segs=${c.segments.length} ` +
       `hop avg=${avg(hops).toFixed(0)} max=${Math.max(...hops).toFixed(0)} rope avg=${avg(ropes).toFixed(0)} max=${Math.max(...ropes).toFixed(0)} ` +
       `alt ${Math.round(Math.min(...ys))}/${Math.round(avg(ys))}/${Math.round(Math.max(...c.segments.map((g) => g.to.y)))} ` +
       `mast avg=${avg(c.segments.filter((g) => !g.finale).map((g) => g.anchor.y - g.anchorRoof)).toFixed(0)} ` +
       `clear=${minClear.toFixed(0)}m gap=${minGap.toFixed(2)}s`,
   );
+
+  // 액션 노트(hold/mash)가 다른 노트와 시간이 겹치지 않는지 확인
+  let actionOverlaps = 0;
+  for (const n of c.notes) {
+    if (n.kind !== 'hold' && n.kind !== 'mash') continue;
+    const end = n.kind === 'hold' ? n.holdEnd! : n.mashEnd!;
+    for (const other of c.notes) {
+      if (other === n) continue;
+      if (other.time >= n.time && other.time <= end) actionOverlaps++;
+    }
+  }
+  console.log(`  action overlaps=${actionOverlaps}`);
 }
 
 // 관통 검사: 궤적 샘플이 주변 옥상보다 낮으면 건물을 뚫는 것이다

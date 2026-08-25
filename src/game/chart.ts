@@ -1,5 +1,6 @@
 import type { City, BuildingInst } from '../world/citygen';
 import { RoutePath } from './route';
+import { Rand } from '../world/rng';
 import type { RhythmPattern, StageDef } from '../data/types';
 
 export interface Vec3 {
@@ -12,13 +13,15 @@ export interface Vec3 {
  * 노트 종류.
  *  - swing: 새 웹을 발사한다. 앵커가 바뀌고 몸이 다음 스윙 지점으로 날아간다.
  *  - air:   스윙 도중 공중에서 넣는 트릭 입력. 앵커는 그대로 두고 점수·부스트만 쌓인다.
+ *  - hold:  구간을 지나는 동안 버튼을 계속 누르고 있어야 하는 홀드 액션.
+ *  - mash:  짧은 시간 안에 여러 번 연타해야 하는 액션.
  */
-export type NoteKind = 'swing' | 'air';
+export type NoteKind = 'swing' | 'air' | 'hold' | 'mash';
 
 export interface Note {
   index: number;
   kind: NoteKind;
-  /** 곡 기준 시각(초). 이 순간에 입력해야 한다. */
+  /** 곡 기준 시각(초). 스윙/에어는 입력 순간, 홀드/연타는 시작 시각. */
   time: number;
   /** 곡 기준 박자 위치 */
   beat: number;
@@ -26,6 +29,12 @@ export interface Note {
   swingIndex: number;
   /** 피날레 등반 구간 여부 */
   finale: boolean;
+  /** hold 전용: 버튼을 놓아도 되는 시각(곡 기준 초) */
+  holdEnd?: number;
+  /** mash 전용: 연타 창이 닫히는 시각(곡 기준 초) */
+  mashEnd?: number;
+  /** mash 전용: 창이 닫히기 전까지 채워야 할 탭 횟수 */
+  mashTarget?: number;
 }
 
 /** 하나의 스윙 구간: 시작점 -> 앵커에 매달려 -> 끝점 */
@@ -56,9 +65,11 @@ export interface Chart {
   speed: number;
   finaleTower: BuildingInst;
   path: RoutePath;
-  /** 통계: 스윙/에어 노트 수 */
+  /** 통계: 스윙/에어/홀드/연타 노트 수 */
   swingCount: number;
   airCount: number;
+  holdCount: number;
+  mashCount: number;
 }
 
 const BASE_SPEED = 27; // m/s
@@ -259,6 +270,8 @@ export function buildChart(city: City): Chart {
     prev = to;
   }
 
+  insertActionNotes(notes, segments, routeSwings, stage);
+
   const tailBeats = 8;
   const totalBeats = Math.ceil((totalBeatSpan + tailBeats) / 4) * 4;
 
@@ -272,9 +285,92 @@ export function buildChart(city: City): Chart {
     speed,
     finaleTower: tower,
     path,
+    holdCount: notes.filter((n) => n.kind === 'hold').length,
+    mashCount: notes.filter((n) => n.kind === 'mash').length,
     swingCount: notes.filter((n) => n.kind === 'swing').length,
     airCount: notes.filter((n) => n.kind === 'air').length,
   };
+}
+
+/**
+ * 홀드·연타 액션 노트를 스윙 구간 위에 흩뿌린다.
+ *
+ * 스윙/에어 노트 그리드와는 완전히 독립적으로, 세그먼트 단위로 확률을 굴려
+ * 배치한다. 스윙 노트는 구간 traversal 의 핵심이라 절대 건드리지 않고 피한다.
+ * 에어 노트는 겹치면 액션 노트가 그 자리를 흡수한다(제거) — 그러지 않으면
+ * 에어 노트가 촘촘한 고난도 스테이지(16비트 그리드)에서는 겹치지 않는 빈틈이
+ * 전혀 없어 홀드·연타가 하나도 배치되지 않는다. 피날레 등반 구간
+ * (routeSwings 이후)에는 넣지 않는다 — 그곳은 이미 그 자체로 클라이맥스다.
+ */
+function insertActionNotes(
+  notes: Note[],
+  segments: SwingSegment[],
+  routeSwings: number,
+  stage: StageDef,
+): void {
+  const rand = new Rand(`${stage.id}:actions`);
+  const difficultyMul = 0.8 + stage.difficulty * 0.08;
+  const tapsPerSecond = 6 + stage.difficulty * 0.4;
+  let cooldown = 3; // 처음 몇 스윙은 적응할 시간을 준다
+  const guard = 0.05;
+
+  for (let j = 0; j < routeSwings; j++) {
+    if (cooldown > 0) {
+      cooldown--;
+      continue;
+    }
+    const seg = segments[j];
+    const span = seg.t1 - seg.t0;
+    const roll = rand.next();
+    let t0 = 0;
+    let dur = 0;
+    let kind: 'hold' | 'mash' | null = null;
+
+    if (roll < 0.14 * difficultyMul) {
+      kind = 'hold';
+      t0 = seg.t0 + span * 0.25;
+      dur = Math.min(span * 0.5, 1.6);
+      if (dur < 0.35) continue;
+    } else if (roll < 0.26 * difficultyMul) {
+      kind = 'mash';
+      t0 = seg.t0 + span * 0.3;
+      dur = Math.min(span * 0.55, 1.3);
+      if (dur < 0.22) continue;
+    }
+    if (!kind) continue;
+
+    // 스윙 노트와 겹치면 포기한다 — 그건 절대 흡수하지 않는다
+    const blocked = notes.some((n) => n.kind === 'swing' && n.time >= t0 - guard && n.time <= t0 + dur + guard);
+    if (blocked) continue;
+
+    // 겹치는 에어 노트는 이 액션이 흡수한다 (그 자리에서 트릭 대신 홀드/연타를 한다)
+    for (let i = notes.length - 1; i >= 0; i--) {
+      const n = notes[i];
+      if (n.kind === 'air' && n.time >= t0 - guard && n.time <= t0 + dur + guard) notes.splice(i, 1);
+    }
+
+    if (kind === 'hold') {
+      notes.push({ index: 0, kind: 'hold', time: t0, beat: 0, swingIndex: j, finale: false, holdEnd: t0 + dur });
+    } else {
+      const target = Math.max(4, Math.round(dur * tapsPerSecond));
+      notes.push({
+        index: 0,
+        kind: 'mash',
+        time: t0,
+        beat: 0,
+        swingIndex: j,
+        finale: false,
+        mashEnd: t0 + dur,
+        mashTarget: target,
+      });
+    }
+    cooldown = 2 + Math.floor(rand.next() * 2);
+  }
+
+  notes.sort((a, b) => a.time - b.time);
+  notes.forEach((n, i) => {
+    n.index = i;
+  });
 }
 
 /**
