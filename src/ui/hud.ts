@@ -15,15 +15,21 @@ const JUDGE_LABEL: Record<string, string> = {
   MISS: 'MISS',
 };
 
-/** 레인에서 노트가 판정선까지 다가오는 데 보이는 시간(초) */
-const LANE_LEAD = 1.35;
+/** 리티클에 노트가 등장해 중앙까지 오므라드는 데 걸리는 시간(초) */
+const SWING_LEAD = 1.35;
 
 /**
  * 홀드·연타는 순간 반응이 아니라 미리 준비해서 눌러야 하는 노트라
- * 스윙/에어보다 훨씬 먼 거리(=훨씬 이른 시점)부터 레인에 들어와 천천히
- * 다가오게 한다. game.ts 의 ACTION_PREVIEW_LEAD 와 맞춰 둔다.
+ * 스윙/에어보다 훨씬 이른 시점부터 등장해 천천히 오므라든다.
+ * game.ts 의 ACTION_PREVIEW_LEAD 와 맞춰 둔다.
  */
-const LANE_LEAD_ACTION = 3.2;
+const ACTION_LEAD = 3.2;
+
+/** 등장/소멸 시 페이드에 걸리는 시간(초) */
+const FADE = 0.25;
+
+/** 원이 중앙 기준 크기의 몇 배로 커진 채 등장하는가 */
+const REACH = 3.4;
 
 /** 인게임 HUD. DOM 으로 그려 가볍고 선명하게 유지한다. */
 export class Hud {
@@ -45,15 +51,16 @@ export class Hud {
   private readonly calloutEl: HTMLElement;
   private readonly calloutSub: HTMLElement;
   private readonly holdWrap: HTMLElement;
-  private readonly holdBar: HTMLElement;
+  private readonly holdRing: HTMLElement;
   private readonly mashWrap: HTMLElement;
+  private readonly mashRing: HTMLElement;
   private readonly mashCountEl: HTMLElement;
   private readonly mashTargetEl: HTMLElement;
   private readonly previewWrap: HTMLElement;
   private readonly previewLabel: HTMLElement;
   private readonly previewBar: HTMLElement;
-  private readonly lane: HTMLElement;
-  private readonly hitline: HTMLElement;
+  private readonly reticle: HTMLElement;
+  private readonly reticleTarget: HTMLElement;
   private readonly progBar: HTMLElement;
   private readonly timeEl: HTMLElement;
   private readonly totalEl: HTMLElement;
@@ -86,22 +93,21 @@ export class Hud {
       <div class="hud__judge"><b>PERFECT</b><span>+0 ms</span></div>
       <div class="hud__callout"><span class="tag"></span><b></b><em></em></div>
       <div class="hud__action hold" style="display:none">
-        <span>HOLD</span>
-        <div class="bar"><i style="width:0%"></i></div>
+        <div class="ring"></div>
+        <b>HOLD</b>
       </div>
       <div class="hud__action mash" style="display:none">
-        <span>연타!</span>
-        <b><em>0</em> / <em class="target">1</em></b>
+        <div class="ring"></div>
+        <b><em>0</em>/<em class="target">1</em></b>
       </div>
       <div class="hud__action preview" style="display:none">
         <span></span>
         <div class="bar"><i style="width:0%"></i></div>
       </div>
-      <div class="lane">
-        <div class="lane__track"></div>
-        <div class="lane__hitline"></div>
-        <div class="lane__label">SPACE · 탭</div>
+      <div class="reticle">
+        <div class="reticle__target"></div>
       </div>
+      <div class="reticle__label">SPACE · 탭</div>
       <div class="hud__progress"><span class="t">0:00</span><div class="bar"><i style="width:0%"></i></div><span class="d">0:00</span></div>
       <div class="hud__heat"><label>MOMENTUM</label><div class="bar"><i style="width:0%"></i></div></div>
       <div class="hud__countdown" style="display:none">3</div>
@@ -124,15 +130,16 @@ export class Hud {
     this.calloutEl = q('.hud__callout b');
     this.calloutSub = q('.hud__callout em');
     this.holdWrap = q('.hud__action.hold');
-    this.holdBar = q('.hud__action.hold .bar i');
+    this.holdRing = q('.hud__action.hold .ring');
     this.mashWrap = q('.hud__action.mash');
+    this.mashRing = q('.hud__action.mash .ring');
     this.mashCountEl = q('.hud__action.mash em:not(.target)');
     this.mashTargetEl = q('.hud__action.mash em.target');
     this.previewWrap = q('.hud__action.preview');
     this.previewLabel = q('.hud__action.preview span');
     this.previewBar = q('.hud__action.preview .bar i');
-    this.lane = q('.lane');
-    this.hitline = q('.lane__hitline');
+    this.reticle = q('.reticle');
+    this.reticleTarget = q('.reticle__target');
     this.progBar = q('.hud__progress .bar i');
     this.timeEl = q('.hud__progress .t');
     this.totalEl = q('.hud__progress .d');
@@ -142,13 +149,13 @@ export class Hud {
 
   /**
    * 탭 지점에 순간 이펙트를 띄운다. 키보드 입력(x/y 없음)일 때는 탭할 화면
-   * 좌표가 없으므로 판정선 위치로 대체한다.
+   * 좌표가 없으므로 중앙 리티클(판정 기준선) 위치로 대체한다.
    */
   private spawnTapRipple(x: number | null, y: number | null): void {
     let px = x;
     let py = y;
     if (px == null || py == null) {
-      const r = this.hitline.getBoundingClientRect();
+      const r = this.reticleTarget.getBoundingClientRect();
       px = r.left + r.width / 2;
       py = r.top + r.height / 2;
     }
@@ -166,8 +173,8 @@ export class Hud {
     let el = this.notePool[i];
     if (!el) {
       el = document.createElement('div');
-      el.className = 'lane__note';
-      this.lane.appendChild(el);
+      el.className = 'reticle__note';
+      this.reticle.appendChild(el);
       this.notePool[i] = el;
     }
     return el;
@@ -197,14 +204,17 @@ export class Hud {
     this.timeEl.textContent = fmtTime(Math.max(0, s.time));
     this.totalEl.textContent = fmtTime(s.duration);
 
+    // 홀드/연타가 활성화되면 접근하던 리티클 노트 대신 중앙 링 자체가
+    // 진행 상태를 보여 준다 — 같은 기준선 위에서 자연스럽게 이어받는다.
     this.holdWrap.style.display = s.holdActive ? '' : 'none';
-    if (s.holdActive) this.holdBar.style.width = `${Math.round(s.holdProgress * 100)}%`;
+    if (s.holdActive) this.holdRing.style.setProperty('--p', String(Math.round(s.holdProgress * 100)));
 
     this.mashWrap.style.display = s.mashActive ? '' : 'none';
     if (s.mashActive) {
       this.mashCountEl.textContent = String(Math.min(s.mashCount, s.mashTarget));
       this.mashTargetEl.textContent = String(s.mashTarget);
       this.mashWrap.classList.toggle('full', s.mashCount >= s.mashTarget);
+      this.mashRing.style.setProperty('--p', String(Math.round((s.mashCount / s.mashTarget) * 100)));
     }
 
     // 아직 시작되지 않은 홀드/연타를 미리 알려 준다 — 게이지가 차오를수록
@@ -213,7 +223,7 @@ export class Hud {
       this.previewWrap.style.display = '';
       this.previewWrap.dataset.kind = s.nextActionKind;
       this.previewLabel.textContent = s.nextActionKind === 'hold' ? '홀드 준비' : '연타 준비';
-      const k = 1 - Math.max(0, Math.min(1, s.nextActionRemain / LANE_LEAD_ACTION));
+      const k = 1 - Math.max(0, Math.min(1, s.nextActionRemain / ACTION_LEAD));
       this.previewBar.style.width = `${Math.round(k * 100)}%`;
     } else {
       this.previewWrap.style.display = 'none';
@@ -229,11 +239,11 @@ export class Hud {
       void this.judgeWrap.offsetWidth;
       this.judgeWrap.classList.add('show');
 
-      // 판정선 자체도 판정 색으로 번쩍인다 — 터치가 들어간 그 자리에서 바로 결과가 보이게.
-      this.hitline.dataset.judge = s.lastJudge;
-      this.hitline.classList.remove('judge-hit');
-      void this.hitline.offsetWidth;
-      this.hitline.classList.add('judge-hit');
+      // 중앙 기준선 자체도 판정 색으로 번쩍인다 — 터치가 들어간 그 자리에서 바로 결과가 보이게.
+      this.reticleTarget.dataset.judge = s.lastJudge;
+      this.reticleTarget.classList.remove('judge-hit');
+      void this.reticleTarget.offsetWidth;
+      this.reticleTarget.classList.add('judge-hit');
     }
 
     if (s.place !== this.lastPlace) {
@@ -273,9 +283,9 @@ export class Hud {
 
     if (beatIndex !== this.lastBeat) {
       this.lastBeat = beatIndex;
-      this.hitline.classList.remove('beat');
-      void this.hitline.offsetWidth;
-      this.hitline.classList.add('beat');
+      this.reticleTarget.classList.remove('beat');
+      void this.reticleTarget.offsetWidth;
+      this.reticleTarget.classList.add('beat');
     }
 
     if (s.countdown > 0) {
@@ -286,10 +296,10 @@ export class Hud {
       this.countEl.style.display = 'none';
     }
 
-    // 타이밍 레인: 오른쪽에서 중앙 판정선으로 흘러온다.
-    // 홀드·연타는 훨씬 먼 거리(LANE_LEAD_ACTION)부터 등장해 스윙/에어보다
-    // 한참 일찍, 훨씬 천천히 다가온다 — 미리 보고 준비할 여유를 주기 위해서다.
-    const half = this.lane.clientWidth / 2;
+    // 리티클: 노트가 크게 등장해 오므라들며 화면 정중앙(기준선)에 맞춰진다.
+    // 홀드·연타는 훨씬 먼 거리(ACTION_LEAD)부터 등장해 스윙/에어보다 한참
+    // 일찍, 훨씬 천천히 오므라든다 — 미리 보고 준비할 여유를 주기 위해서다.
+    // 판정이 난 뒤에도 잠깐 남아(FADE) 판정 색으로 물들었다 사라진다.
     for (let i = 0; i < Math.max(this.notePool.length, s.lane.length); i++) {
       const el = this.notePool[i];
       const n = s.lane[i];
@@ -298,22 +308,19 @@ export class Hud {
         continue;
       }
       const isAction = n.kind === 'hold' || n.kind === 'mash';
-      const lead = isAction ? LANE_LEAD_ACTION : LANE_LEAD;
+      const lead = isAction ? ACTION_LEAD : SWING_LEAD;
+      const isDiamond = n.kind === 'swing' || n.kind === 'mash';
       const node = this.noteEl(i);
-      const x = half + (n.remain / lead) * half;
+      const k = Math.max(0, Math.min(1, n.remain / lead));
+      const scale = 1 + k * REACH;
+      const opacity =
+        n.remain >= 0 ? Math.min(1, (lead - n.remain) / FADE) : Math.max(0, (FADE + n.remain) / FADE);
       node.style.display = '';
-      node.className = `lane__note ${n.kind}`;
-      node.style.opacity = n.remain > lead ? '0' : '1';
-      if (n.kind === 'hold' && n.holdEndRemain !== undefined) {
-        // 시작(왼쪽, 판정선에 먼저 닿음) ~ 종료(오른쪽, 아직 다가오는 중) 를
-        // 잇는 막대로 그려 "이 구간 내내 눌러야 한다"는 걸 보여 준다.
-        const xEnd = half + (Math.max(0, n.holdEndRemain) / lead) * half;
-        node.style.left = `${x}px`;
-        node.style.width = `${Math.max(4, xEnd - x)}px`;
-      } else {
-        node.style.left = `${x}px`;
-        node.style.width = '';
-      }
+      node.className = `reticle__note ${n.kind}`;
+      node.style.opacity = String(opacity);
+      node.style.transform = isDiamond ? `rotate(45deg) scale(${scale})` : `scale(${scale})`;
+      if (n.hit) node.dataset.judge = n.hit;
+      else delete node.dataset.judge;
     }
   }
 }

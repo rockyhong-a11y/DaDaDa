@@ -239,7 +239,7 @@ export class Player {
   }
 }
 
-/** 웹 로프. 손끝에서 앵커까지 이어지는 발광 선. */
+/** 웹 로프. 손끝에서 앵커까지 이어지는 발광 선. 반투명하게 둬서 뒤 배경을 가리지 않는다. */
 export class WebRope {
   readonly mesh: Mesh;
   private readonly mat: MeshBasicMaterial;
@@ -249,7 +249,7 @@ export class WebRope {
   constructor() {
     const geo = new CylinderGeometry(0.055, 0.11, 1, 5, 1, true);
     geo.translate(0, 0.5, 0);
-    this.mat = new MeshBasicMaterial({ color: 0xdff7ff, transparent: true, opacity: 0.92 });
+    this.mat = new MeshBasicMaterial({ color: 0xdff7ff, transparent: true, opacity: 0.6 });
     this.mesh = new Mesh(geo, this.mat);
     this.mesh.frustumCulled = false;
     this.mesh.visible = false;
@@ -266,7 +266,7 @@ export class WebRope {
     this.mesh.position.copy(from);
     this.mesh.scale.set(1, len, 1);
     this.mesh.quaternion.setFromUnitVectors(this.up, this.dirV.divideScalar(len));
-    this.mat.opacity = 0.92 * opacity;
+    this.mat.opacity = 0.6 * opacity;
   }
 
   hide(): void {

@@ -385,7 +385,6 @@ export class Game {
     this.dir.copy(d);
     this.trail.reset(this.pos);
     this.chase.reset(this.pos, this.dir);
-    this.markers.hideAll();
     this.rope.hide();
   }
 
@@ -576,7 +575,7 @@ export class Game {
       this.falling,
     );
     this.sky?.follow(this.chase.camera.position.x, this.chase.camera.position.y, this.chase.camera.position.z);
-    this.updateMarkers(songTime);
+    this.updateMarkers();
 
     // 종료 판정
     if (this.phase === 'playing') {
@@ -940,43 +939,9 @@ export class Game {
     return Math.max(-1, Math.min(1, rx)) * 0.9;
   }
 
-  private updateMarkers(songTime: number): void {
-    const anchors: { pos: Vector3; remain: number; window: number }[] = [];
-    const airs: { pos: Vector3; remain: number }[] = [];
-    const notes = this.chart.notes;
-    for (let i = this.noteCursor; i < notes.length && anchors.length + airs.length < 20; i++) {
-      const n = notes[i];
-      if (noteState.has(n)) continue;
-      const remain = n.time - songTime;
-      if (remain < -0.2) continue;
-      if (remain > 2.6) break;
-      const seg = this.chart.segments[Math.min(n.swingIndex, this.chart.segments.length - 1)];
-      if (n.kind === 'swing') {
-        if (anchors.length < 6) {
-          anchors.push({
-            pos: new Vector3(seg.anchor.x, seg.anchor.y, seg.anchor.z),
-            remain,
-            window: this.windows.good,
-          });
-        }
-      } else if (n.kind === 'air' && airs.length < 14) {
-        const span = seg.t1 - seg.t0 || 1;
-        const u = Math.max(0, Math.min(1, (n.time - seg.t0) / span));
-        swingPoint(seg, Game.easeSwing(u), this.tmpVec);
-        airs.push({ pos: new Vector3(this.tmpVec.x, this.tmpVec.y, this.tmpVec.z), remain });
-      }
-      // hold/mash 는 3D 프리뷰 링 대신 플레이어에게 붙는 액션 이펙트로 표현한다
-    }
-    this.markers.update(this.chase.camera, this.elapsed, anchors, airs);
-
-    if (this.hud.holdActive) this.markers.showHold(this.pos, this.chase.camera, this.hud.holdProgress);
-    else if (this.hud.mashActive) {
-      this.markers.showMash(this.pos, this.chase.camera, this.elapsed, this.hud.mashCount / this.hud.mashTarget);
-    } else if (this.hud.nextActionKind) {
-      const k = 1 - Math.max(0, Math.min(1, this.hud.nextActionRemain / ACTION_PREVIEW_LEAD));
-      if (this.hud.nextActionKind === 'hold') this.markers.showHoldPreview(this.pos, this.chase.camera, k);
-      else this.markers.showMashPreview(this.pos, this.chase.camera, k);
-    } else this.markers.hideAction();
+  private updateMarkers(): void {
+    // 노트 타이밍은 화면 중앙 리티클(HUD)이 전담한다 — 여기서는 판정 파티클만 갱신한다.
+    this.markers.update();
   }
 
   private updateHud(songTime: number): void {

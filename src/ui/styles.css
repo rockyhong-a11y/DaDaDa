@@ -611,18 +611,18 @@ kbd {
 }
 
 /*
- * 태고의 달인처럼 판정 텍스트를 화면 중앙이 아니라 실제 입력이 일어나는
- * 판정선(레인) 바로 아래에 띄운다 — 레인이 화면 상단으로 옮겨감에 따라
- * 판정 텍스트도 그 바로 밑, 즉 플레이어 시야(건물·캐릭터가 보이는 영역)
- * 쪽으로 흘러들어오게 한다.
+ * 태고의 달인처럼 판정 텍스트가 실제 입력이 일어나는 지점에서 뜬다 —
+ * 이제 그 지점은 화면 정중앙(리티클)이라, 위치 계산 없이 그냥 화면
+ * 중앙에 고정해 두면 된다.
  */
 .hud__judge {
   position: absolute;
   left: 50%;
-  top: calc(248px + env(safe-area-inset-top));
-  transform: translate(-50%, 0);
+  top: 50%;
+  transform: translate(-50%, -50%);
   text-align: center;
   opacity: 0;
+  z-index: 5;
 }
 
 .hud__judge b {
@@ -648,25 +648,25 @@ kbd {
 @keyframes judge-pop {
   0% {
     opacity: 0;
-    transform: translate(-50%, -12%) scale(0.6);
+    transform: translate(-50%, -50%) scale(0.6);
   }
   20% {
     opacity: 1;
-    transform: translate(-50%, 0) scale(1.22);
+    transform: translate(-50%, -50%) scale(1.22);
   }
   38% {
-    transform: translate(-50%, 0) scale(0.94);
+    transform: translate(-50%, -50%) scale(0.94);
   }
   50% {
-    transform: translate(-50%, 0) scale(1.04);
+    transform: translate(-50%, -50%) scale(1.04);
   }
   72% {
     opacity: 1;
-    transform: translate(-50%, 10px) scale(1);
+    transform: translate(-50%, calc(-50% - 10px)) scale(1);
   }
   100% {
     opacity: 0;
-    transform: translate(-50%, 38px) scale(0.96);
+    transform: translate(-50%, calc(-50% - 38px)) scale(0.96);
   }
 }
 
@@ -805,58 +805,63 @@ kbd {
   }
 }
 
-/* 홀드 · 연타 액션 오버레이 */
-
-.hud__action {
+/*
+ * 홀드 · 연타 액션 오버레이.
+ * 다가올 때는 다른 노트와 똑같이 리티클 노트(.reticle__note)로 오므라들다가,
+ * 실제로 눌러야 하는 순간부터는 바로 그 자리(정중앙 기준선)에서 원형 링이
+ * 진행 상태를 이어받아 보여 준다 — 위치가 안 바뀌니 시선이 튀지 않는다.
+ */
+.hud__action.hold,
+.hud__action.mash {
   position: absolute;
   left: 50%;
-  top: 58%;
-  transform: translate(-50%, -50%);
+  top: 50%;
+  width: 74px;
+  height: 74px;
+  margin: -37px 0 0 -37px;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
   pointer-events: none;
   text-align: center;
+  z-index: 3;
 }
 
-.hud__action span {
-  font-size: 11px;
+.hud__action.hold .ring,
+.hud__action.mash .ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  -webkit-mask: radial-gradient(closest-side, transparent 66%, black 68%, black 100%);
+  mask: radial-gradient(closest-side, transparent 66%, black 68%, black 100%);
+}
+
+.hud__action.hold .ring {
+  background: conic-gradient(var(--green) calc(var(--p, 0) * 1%), rgba(255, 255, 255, 0.18) 0);
+  box-shadow: 0 0 20px rgba(107, 255, 158, 0.65);
+}
+
+.hud__action.hold b {
+  position: relative;
+  font-size: 10px;
   font-weight: 800;
-  letter-spacing: 0.3em;
-}
-
-.hud__action.hold span {
+  letter-spacing: 0.22em;
   color: var(--green);
+  text-shadow: 0 0 10px rgba(107, 255, 158, 0.7);
 }
 
-.hud__action.hold .bar {
-  width: 140px;
-  height: 8px;
-  border-radius: 4px;
-  background: rgba(0, 0, 0, 0.45);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
-  overflow: hidden;
-}
-
-.hud__action.hold .bar i {
-  display: block;
-  height: 100%;
-  border-radius: 4px;
-  background: linear-gradient(90deg, rgba(107, 255, 158, 0.6), var(--green));
-  transition: width 0.06s linear;
-}
-
-.hud__action.mash span {
-  color: var(--amber);
+.hud__action.mash .ring {
+  background: conic-gradient(var(--amber) calc(var(--p, 0) * 1%), rgba(255, 255, 255, 0.18) 0);
+  box-shadow: 0 0 20px rgba(255, 180, 87, 0.65);
   animation: mash-shake 0.22s ease-in-out infinite alternate;
 }
 
 .hud__action.mash b {
-  font-size: 30px;
+  position: relative;
+  font-size: 19px;
   font-weight: 900;
   color: var(--text);
-  text-shadow: 0 0 20px rgba(255, 180, 87, 0.6);
+  text-shadow: 0 0 16px rgba(255, 180, 87, 0.7);
 }
 
 .hud__action.mash em {
@@ -865,23 +870,36 @@ kbd {
 
 .hud__action.mash.full b {
   color: var(--green);
-  text-shadow: 0 0 22px rgba(107, 255, 158, 0.75);
+  text-shadow: 0 0 18px rgba(107, 255, 158, 0.8);
 }
 
 @keyframes mash-shake {
   from {
-    transform: translateX(-2px);
+    transform: rotate(-2.5deg);
   }
   to {
-    transform: translateX(2px);
+    transform: rotate(2.5deg);
   }
 }
 
 /*
- * 홀드·연타가 실제로 시작되기 전에 미리 보여 주는 "준비" 배지.
- * 다가올수록 게이지가 차오르고 텍스트가 은은하게 깜빡여 확실히 눈에 띈다 —
- * 순간 반응이 아니라 미리 준비하고 있어야 하는 노트라는 걸 알려 주는 역할.
+ * 홀드·연타가 실제로 시작되기 전에 미리 보여 주는 "준비" 배지. 리티클
+ * 바로 아래에 떠서, 오므라드는 노트가 곧 도착한다는 걸 텍스트로도 알려 준다.
+ * 다가올수록 게이지가 차오르고 텍스트가 은은하게 깜빡여 확실히 눈에 띈다.
  */
+.hud__action.preview {
+  position: absolute;
+  left: 50%;
+  top: calc(50% + 68px);
+  transform: translate(-50%, 0);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+  text-align: center;
+}
+
 .hud__action.preview span {
   font-size: 11px;
   font-weight: 800;
@@ -934,155 +952,142 @@ kbd {
 }
 
 /*
- * 타이밍 레인. 건물 실루엣과 같이 보여야 "이 노트가 저 건물로 가는
- * 스윙이구나"를 바로 알 수 있어서, 화면 하단이 아니라 상단 — 카메라가
- * 올려다보는 건물들이 실제로 보이는 자리 — 에 굵게 띄운다. 배경은 짙게
- * 칠하지 않고 흐리게만 걸어(backdrop-filter) 뒤 건물이 비쳐 보이게 하고,
- * 대신 판정선·노트는 글로우를 세게 줘서 어떤 배경 위에서도 묻히지 않게 한다.
+ * 화면 정중앙 리티클. 모든 노트(스윙·에어·홀드·연타)가 여기서 크게
+ * 등장해 오므라들며 정중앙의 기준 링에 맞춰지는 순간이 곧 판정 시점이다.
+ * 링 형태(테두리만, 배경 없음)라 뒤 건물 화면을 가리지 않는다.
  */
-.lane {
+.reticle {
   position: absolute;
   left: 50%;
-  top: calc(152px + env(safe-area-inset-top));
-  transform: translateX(-50%);
-  width: min(560px, 84vw);
-  height: 84px;
+  top: 50%;
+  width: 0;
+  height: 0;
+  z-index: 2;
 }
 
-.lane__track {
+.reticle__target {
   position: absolute;
-  inset: 26px 0;
-  border-radius: 14px;
-  border: 1px solid var(--line);
-  background: linear-gradient(
-    90deg,
-    rgba(6, 9, 20, 0),
-    rgba(6, 9, 20, 0.42) 20%,
-    rgba(6, 9, 20, 0.46) 80%,
-    rgba(6, 9, 20, 0)
-  );
-  backdrop-filter: blur(7px) saturate(1.15);
-  -webkit-backdrop-filter: blur(7px) saturate(1.15);
-  box-shadow: inset 0 0 24px rgba(0, 0, 0, 0.4);
-  overflow: hidden;
+  left: 0;
+  top: 0;
+  width: 50px;
+  height: 50px;
+  margin: -25px 0 0 -25px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 0 16px rgba(255, 255, 255, 0.5), inset 0 0 10px rgba(255, 255, 255, 0.25);
 }
 
-.lane__hitline {
-  position: absolute;
-  left: 50%;
-  top: 2px;
-  bottom: 2px;
-  width: 4px;
-  margin-left: -2px;
-  border-radius: 2px;
-  background: linear-gradient(180deg, var(--cyan), rgba(56, 246, 255, 0.25));
-  box-shadow: 0 0 22px rgba(56, 246, 255, 0.85), 0 0 8px rgba(56, 246, 255, 0.95);
-}
-
-.lane__hitline.beat {
+.reticle__target.beat {
   animation: hit-pulse 0.16s ease;
 }
 
 @keyframes hit-pulse {
   from {
-    transform: scaleY(1.4);
+    transform: scale(1.3);
     filter: brightness(1.9);
   }
 }
 
 /*
- * 실제 판정이 나는 순간 판정선 자체가 판정 색으로 확 번쩍이며 굵어졌다
+ * 실제 판정이 나는 순간 기준 링 자체가 판정 색으로 확 번쩍이며 커졌다
  * 가라앉는다 — 태고의 달인에서 북을 칠 때마다 판정 색으로 북 테두리가
  * 번쩍이는 것과 같은 역할. 배경음 박자에 맞춘 .beat 펄스와는 별개로,
  * 터치가 실제로 들어간 그 프레임에만 짧고 세게 터진다.
  */
-.lane__hitline.judge-hit {
+.reticle__target.judge-hit {
   animation: judge-hit-pulse 0.24s cubic-bezier(0.1, 0.8, 0.3, 1);
 }
 
-.lane__hitline[data-judge='PERFECT'] {
+.reticle__target[data-judge='PERFECT'] {
   --jc: var(--cyan);
 }
 
-.lane__hitline[data-judge='GREAT'] {
+.reticle__target[data-judge='GREAT'] {
   --jc: var(--green);
 }
 
-.lane__hitline[data-judge='GOOD'] {
+.reticle__target[data-judge='GOOD'] {
   --jc: var(--amber);
 }
 
-.lane__hitline[data-judge='MISS'] {
+.reticle__target[data-judge='MISS'] {
   --jc: var(--red);
 }
 
 @keyframes judge-hit-pulse {
   0% {
-    transform: scaleY(1) scaleX(1);
+    transform: scale(1);
     filter: brightness(1);
   }
   22% {
-    transform: scaleY(2.1) scaleX(3.2);
+    transform: scale(1.6);
     filter: brightness(2.4);
-    background: var(--jc);
+    border-color: var(--jc);
     box-shadow: 0 0 38px var(--jc), 0 0 70px var(--jc);
   }
   100% {
-    transform: scaleY(1) scaleX(1);
+    transform: scale(1);
     filter: brightness(1);
   }
 }
 
-.lane__note {
+/*
+ * 다가오는 노트. 기준 링과 같은 자리(정중앙)에서 크게 등장해 오므라들다
+ * 정확히 기준 링 크기에 맞춰지는 순간이 판정 시점이다. 테두리만 있는
+ * 링이라 뒤에 뭐가 있든 묻히지 않는다. 판정이 난 뒤에도 잠깐 남아
+ * 판정 색으로 테두리가 물들었다 페이드아웃된다(JS 가 opacity 로 처리).
+ */
+.reticle__note {
   position: absolute;
-  top: 50%;
-  width: 16px;
-  height: 16px;
-  margin: -8px 0 0 -8px;
-  border-radius: 3px;
-  transform: rotate(45deg);
-  background: var(--cyan);
-  box-shadow: 0 0 16px rgba(56, 246, 255, 0.9), 0 0 5px rgba(255, 255, 255, 0.7);
-  will-change: left;
-}
-
-.lane__note.air {
-  width: 11px;
-  height: 11px;
-  margin: -5.5px 0 0 -5.5px;
+  left: 0;
+  top: 0;
+  width: 50px;
+  height: 50px;
+  margin: -25px 0 0 -25px;
   border-radius: 50%;
-  background: var(--magenta);
-  box-shadow: 0 0 14px rgba(255, 79, 196, 0.85), 0 0 5px rgba(255, 255, 255, 0.6);
-  transform: none;
+  border: 3px solid var(--cyan);
+  box-shadow: 0 0 18px rgba(56, 246, 255, 0.75);
+  will-change: transform, opacity;
 }
 
-/* hold 는 시작~종료를 잇는 막대다. left/width 는 JS 가 직접 지정한다. */
-.lane__note.hold {
-  height: 15px;
-  margin: -7.5px 0 0 0;
-  border-radius: 7px;
-  background: linear-gradient(90deg, rgba(107, 255, 158, 0.4), var(--green));
-  box-shadow: 0 0 16px rgba(107, 255, 158, 0.8), 0 0 5px rgba(255, 255, 255, 0.5);
-  transform: none;
+.reticle__note.air {
+  width: 34px;
+  height: 34px;
+  margin: -17px 0 0 -17px;
+  border-color: var(--magenta);
+  box-shadow: 0 0 16px rgba(255, 79, 196, 0.8);
 }
 
-.lane__note.mash {
-  width: 17px;
-  height: 17px;
-  margin: -8.5px 0 0 -8.5px;
-  border-radius: 3px;
-  background: var(--amber);
-  box-shadow: 0 0 16px rgba(255, 180, 87, 0.95), 0 0 5px rgba(255, 255, 255, 0.6);
-  animation: mash-note-pulse 0.4s ease-in-out infinite alternate;
+.reticle__note.hold {
+  border-color: var(--green);
+  box-shadow: 0 0 18px rgba(107, 255, 158, 0.8);
 }
 
-@keyframes mash-note-pulse {
-  from {
-    transform: rotate(45deg) scale(0.85);
-  }
-  to {
-    transform: rotate(45deg) scale(1.18);
-  }
+.reticle__note.mash {
+  border-radius: 8px;
+  border-color: var(--amber);
+  box-shadow: 0 0 18px rgba(255, 180, 87, 0.9);
+}
+
+/* 판정 결과가 나온 뒤 잠깐 그 색으로 테두리를 물들인다 */
+.reticle__note[data-judge='PERFECT'] {
+  border-color: var(--cyan);
+  box-shadow: 0 0 22px var(--cyan);
+}
+
+.reticle__note[data-judge='GREAT'] {
+  border-color: var(--green);
+  box-shadow: 0 0 22px var(--green);
+}
+
+.reticle__note[data-judge='GOOD'] {
+  border-color: var(--amber);
+  box-shadow: 0 0 22px var(--amber);
+}
+
+.reticle__note[data-judge='MISS'] {
+  border-color: var(--red);
+  box-shadow: 0 0 22px var(--red);
 }
 
 /* 탭 순간 터지는 이펙트: 두 겹으로 팡 하고 번지는 느낌을 준다 */
@@ -1139,14 +1144,16 @@ kbd {
   }
 }
 
-.lane__label {
+.reticle__label {
   position: absolute;
   left: 50%;
-  bottom: -4px;
+  top: calc(50% - 92px);
   transform: translateX(-50%);
   font-size: 10px;
   letter-spacing: 0.22em;
   color: var(--muted);
+  pointer-events: none;
+  z-index: 2;
 }
 
 /* 진행 바 */
@@ -1530,13 +1537,6 @@ input[type='password'] {
   .hud__combo {
     min-width: 0;
   }
-  .lane {
-    top: calc(136px + env(safe-area-inset-top));
-    height: 76px;
-  }
-  .hud__judge {
-    top: calc(228px + env(safe-area-inset-top));
-  }
   .hud__heat {
     display: none;
   }
@@ -1583,15 +1583,22 @@ input[type='password'] {
   .hud__callout b {
     font-size: 15px;
   }
-  .lane {
-    top: calc(96px + env(safe-area-inset-top));
-    height: 54px;
+  .reticle__target,
+  .reticle__note {
+    width: 38px;
+    height: 38px;
+    margin: -19px 0 0 -19px;
   }
-  .lane__track {
-    inset: 14px 0;
+  .reticle__note.air {
+    width: 26px;
+    height: 26px;
+    margin: -13px 0 0 -13px;
   }
-  .hud__judge {
-    top: calc(160px + env(safe-area-inset-top));
+  .hud__action.hold,
+  .hud__action.mash {
+    width: 58px;
+    height: 58px;
+    margin: -29px 0 0 -29px;
   }
   .hud__progress {
     bottom: calc(14px + env(safe-area-inset-bottom));
