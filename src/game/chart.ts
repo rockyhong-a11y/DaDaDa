@@ -310,7 +310,9 @@ function insertActionNotes(
 ): void {
   const rand = new Rand(`${stage.id}:actions`);
   const difficultyMul = 0.8 + stage.difficulty * 0.08;
-  const tapsPerSecond = 6 + stage.difficulty * 0.4;
+  // 연타 속도는 일부러 느슨하게 잡는다 — 홀드/연타 구간은 몰아치는 스윙 사이의
+  // "쉬어가는" 구간이지, 또 다른 몰아치기 구간이 아니다.
+  const tapsPerSecond = 3 + stage.difficulty * 0.25;
   let cooldown = 3; // 처음 몇 스윙은 적응할 시간을 준다
   const guard = 0.05;
 
@@ -326,16 +328,19 @@ function insertActionNotes(
     let dur = 0;
     let kind: 'hold' | 'mash' | null = null;
 
+    // 게이지를 구간 대부분에 걸쳐 길게 늘여 여유 있게 표시한다. 다만 구간
+    // 자체가 짧은 촘촘한 스테이지에서는 최소 길이를 너무 높이면 홀드·연타가
+    // 아예 하나도 안 나오므로, 바닥값은 예전보다 살짝만 올린다.
     if (roll < 0.14 * difficultyMul) {
       kind = 'hold';
-      t0 = seg.t0 + span * 0.25;
-      dur = Math.min(span * 0.5, 1.6);
-      if (dur < 0.35) continue;
+      t0 = seg.t0 + span * 0.15;
+      dur = Math.min(span * 0.75, 3.0);
+      if (dur < 0.5) continue;
     } else if (roll < 0.26 * difficultyMul) {
       kind = 'mash';
-      t0 = seg.t0 + span * 0.3;
-      dur = Math.min(span * 0.55, 1.3);
-      if (dur < 0.22) continue;
+      t0 = seg.t0 + span * 0.15;
+      dur = Math.min(span * 0.72, 2.4);
+      if (dur < 0.35) continue;
     }
     if (!kind) continue;
 
