@@ -15,16 +15,6 @@ const JUDGE_LABEL: Record<string, string> = {
   MISS: 'MISS',
 };
 
-/** 리티클에 노트가 등장해 중앙까지 오므라드는 데 걸리는 시간(초) */
-const SWING_LEAD = 1.35;
-
-/**
- * 홀드·연타는 순간 반응이 아니라 미리 준비해서 눌러야 하는 노트라
- * 스윙/에어보다 훨씬 이른 시점부터 등장해 천천히 오므라든다.
- * game.ts 의 ACTION_PREVIEW_LEAD 와 맞춰 둔다.
- */
-const ACTION_LEAD = 3.2;
-
 /** 등장/소멸 시 페이드에 걸리는 시간(초) */
 const FADE = 0.25;
 
@@ -50,15 +40,6 @@ export class Hud {
   private readonly calloutTag: HTMLElement;
   private readonly calloutEl: HTMLElement;
   private readonly calloutSub: HTMLElement;
-  private readonly holdWrap: HTMLElement;
-  private readonly holdRing: HTMLElement;
-  private readonly mashWrap: HTMLElement;
-  private readonly mashRing: HTMLElement;
-  private readonly mashCountEl: HTMLElement;
-  private readonly mashTargetEl: HTMLElement;
-  private readonly previewWrap: HTMLElement;
-  private readonly previewLabel: HTMLElement;
-  private readonly previewBar: HTMLElement;
   private readonly reticle: HTMLElement;
   private readonly reticleTarget: HTMLElement;
   private readonly progBar: HTMLElement;
@@ -92,18 +73,6 @@ export class Hud {
       </div>
       <div class="hud__judge"><b>PERFECT</b><span>+0 ms</span></div>
       <div class="hud__callout"><span class="tag"></span><b></b><em></em></div>
-      <div class="hud__action hold" style="display:none">
-        <div class="ring"></div>
-        <b>HOLD</b>
-      </div>
-      <div class="hud__action mash" style="display:none">
-        <div class="ring"></div>
-        <b><em>0</em>/<em class="target">1</em></b>
-      </div>
-      <div class="hud__action preview" style="display:none">
-        <span></span>
-        <div class="bar"><i style="width:0%"></i></div>
-      </div>
       <div class="reticle">
         <div class="reticle__target"></div>
       </div>
@@ -129,15 +98,6 @@ export class Hud {
     this.calloutTag = q('.hud__callout .tag');
     this.calloutEl = q('.hud__callout b');
     this.calloutSub = q('.hud__callout em');
-    this.holdWrap = q('.hud__action.hold');
-    this.holdRing = q('.hud__action.hold .ring');
-    this.mashWrap = q('.hud__action.mash');
-    this.mashRing = q('.hud__action.mash .ring');
-    this.mashCountEl = q('.hud__action.mash em:not(.target)');
-    this.mashTargetEl = q('.hud__action.mash em.target');
-    this.previewWrap = q('.hud__action.preview');
-    this.previewLabel = q('.hud__action.preview span');
-    this.previewBar = q('.hud__action.preview .bar i');
     this.reticle = q('.reticle');
     this.reticleTarget = q('.reticle__target');
     this.progBar = q('.hud__progress .bar i');
@@ -203,31 +163,6 @@ export class Hud {
     this.progBar.style.width = `${(s.progress * 100).toFixed(1)}%`;
     this.timeEl.textContent = fmtTime(Math.max(0, s.time));
     this.totalEl.textContent = fmtTime(s.duration);
-
-    // 홀드/연타가 활성화되면 접근하던 리티클 노트 대신 중앙 링 자체가
-    // 진행 상태를 보여 준다 — 같은 기준선 위에서 자연스럽게 이어받는다.
-    this.holdWrap.style.display = s.holdActive ? '' : 'none';
-    if (s.holdActive) this.holdRing.style.setProperty('--p', String(Math.round(s.holdProgress * 100)));
-
-    this.mashWrap.style.display = s.mashActive ? '' : 'none';
-    if (s.mashActive) {
-      this.mashCountEl.textContent = String(Math.min(s.mashCount, s.mashTarget));
-      this.mashTargetEl.textContent = String(s.mashTarget);
-      this.mashWrap.classList.toggle('full', s.mashCount >= s.mashTarget);
-      this.mashRing.style.setProperty('--p', String(Math.round((s.mashCount / s.mashTarget) * 100)));
-    }
-
-    // 아직 시작되지 않은 홀드/연타를 미리 알려 준다 — 게이지가 차오를수록
-    // 곧 눌러야 한다는 걸 인지하고 준비할 수 있게.
-    if (s.nextActionKind) {
-      this.previewWrap.style.display = '';
-      this.previewWrap.dataset.kind = s.nextActionKind;
-      this.previewLabel.textContent = s.nextActionKind === 'hold' ? '홀드 준비' : '연타 준비';
-      const k = 1 - Math.max(0, Math.min(1, s.nextActionRemain / ACTION_LEAD));
-      this.previewBar.style.width = `${Math.round(k * 100)}%`;
-    } else {
-      this.previewWrap.style.display = 'none';
-    }
 
     if (s.lastJudge && s.lastJudgeAt !== this.lastJudgeAt) {
       this.lastJudgeAt = s.lastJudgeAt;
@@ -297,9 +232,10 @@ export class Hud {
     }
 
     // 리티클: 노트가 크게 등장해 오므라들며 화면 정중앙(기준선)에 맞춰진다.
-    // 홀드·연타는 훨씬 먼 거리(ACTION_LEAD)부터 등장해 스윙/에어보다 한참
-    // 일찍, 훨씬 천천히 오므라든다 — 미리 보고 준비할 여유를 주기 위해서다.
-    // 판정이 난 뒤에도 잠깐 남아(FADE) 판정 색으로 물들었다 사라진다.
+    // 등장 시간(lead)은 스테이지 템포에 맞춰 game.ts 가 정한다 — 빠른
+    // 스테이지일수록 짧게 잡아 링이 과하게 겹치지 않게 한다. 판정이 난
+    // 뒤에도 잠깐 남아(FADE) 판정 색으로 물들었다 사라진다.
+    const lead = s.noteLead;
     for (let i = 0; i < Math.max(this.notePool.length, s.lane.length); i++) {
       const el = this.notePool[i];
       const n = s.lane[i];
@@ -307,9 +243,6 @@ export class Hud {
         if (el) el.style.display = 'none';
         continue;
       }
-      const isAction = n.kind === 'hold' || n.kind === 'mash';
-      const lead = isAction ? ACTION_LEAD : SWING_LEAD;
-      const isDiamond = n.kind === 'swing' || n.kind === 'mash';
       const node = this.noteEl(i);
       const k = Math.max(0, Math.min(1, n.remain / lead));
       const scale = 1 + k * REACH;
@@ -318,7 +251,7 @@ export class Hud {
       node.style.display = '';
       node.className = `reticle__note ${n.kind}`;
       node.style.opacity = String(opacity);
-      node.style.transform = isDiamond ? `rotate(45deg) scale(${scale})` : `scale(${scale})`;
+      node.style.transform = n.kind === 'swing' ? `rotate(45deg) scale(${scale})` : `scale(${scale})`;
       if (n.hit) node.dataset.judge = n.hit;
       else delete node.dataset.judge;
     }

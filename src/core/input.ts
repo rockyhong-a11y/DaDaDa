@@ -18,15 +18,9 @@ export class InputManager {
   private listeners: ((e: PressEvent) => void)[] = [];
   private pauseHandler: (() => void) | null = null;
   private readonly held = new Set<string>();
-  private readonly activePointers = new Set<number>();
   private readonly keys = new Set(['Space', 'KeyJ', 'KeyK', 'KeyF', 'KeyD', 'ArrowUp', 'Enter']);
   private audioNow: () => number;
   private attached = false;
-
-  /** 지금 이 순간 입력(키 또는 터치/클릭)이 눌려 있는가. 홀드 노트 판정에 쓴다. */
-  get isDown(): boolean {
-    return this.held.size > 0 || this.activePointers.size > 0;
-  }
 
   constructor(audioNow: () => number) {
     this.audioNow = audioNow;
@@ -70,12 +64,7 @@ export class InputManager {
     const target = e.target as HTMLElement | null;
     // UI 버튼·입력 위의 터치는 게임 입력으로 치지 않는다
     if (target?.closest('button, a, input, label, select, textarea, .ui-panel')) return;
-    this.activePointers.add(e.pointerId);
     this.emit(this.toAudioTime(e.timeStamp), 'pointer', e.clientX, e.clientY);
-  };
-
-  private readonly onPointerUp = (e: PointerEvent): void => {
-    this.activePointers.delete(e.pointerId);
   };
 
   /**
@@ -89,8 +78,6 @@ export class InputManager {
     window.addEventListener('keydown', this.onKeyDown, { passive: false });
     window.addEventListener('keyup', this.onKeyUp);
     window.addEventListener('pointerdown', this.onPointerDown, { passive: true });
-    window.addEventListener('pointerup', this.onPointerUp, { passive: true });
-    window.addEventListener('pointercancel', this.onPointerUp, { passive: true });
   }
 
   detach(): void {
@@ -99,10 +86,7 @@ export class InputManager {
     window.removeEventListener('keydown', this.onKeyDown);
     window.removeEventListener('keyup', this.onKeyUp);
     window.removeEventListener('pointerdown', this.onPointerDown);
-    window.removeEventListener('pointerup', this.onPointerUp);
-    window.removeEventListener('pointercancel', this.onPointerUp);
     this.held.clear();
-    this.activePointers.clear();
   }
 
   clearListeners(): void {

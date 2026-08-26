@@ -806,153 +806,7 @@ kbd {
 }
 
 /*
- * 홀드 · 연타 액션 오버레이.
- * 다가올 때는 다른 노트와 똑같이 리티클 노트(.reticle__note)로 오므라들다가,
- * 실제로 눌러야 하는 순간부터는 바로 그 자리(정중앙 기준선)에서 원형 링이
- * 진행 상태를 이어받아 보여 준다 — 위치가 안 바뀌니 시선이 튀지 않는다.
- */
-.hud__action.hold,
-.hud__action.mash {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 74px;
-  height: 74px;
-  margin: -37px 0 0 -37px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-  text-align: center;
-  z-index: 3;
-}
-
-.hud__action.hold .ring,
-.hud__action.mash .ring {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  -webkit-mask: radial-gradient(closest-side, transparent 66%, black 68%, black 100%);
-  mask: radial-gradient(closest-side, transparent 66%, black 68%, black 100%);
-}
-
-.hud__action.hold .ring {
-  background: conic-gradient(var(--green) calc(var(--p, 0) * 1%), rgba(255, 255, 255, 0.18) 0);
-  box-shadow: 0 0 20px rgba(107, 255, 158, 0.65);
-}
-
-.hud__action.hold b {
-  position: relative;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.22em;
-  color: var(--green);
-  text-shadow: 0 0 10px rgba(107, 255, 158, 0.7);
-}
-
-.hud__action.mash .ring {
-  background: conic-gradient(var(--amber) calc(var(--p, 0) * 1%), rgba(255, 255, 255, 0.18) 0);
-  box-shadow: 0 0 20px rgba(255, 180, 87, 0.65);
-  animation: mash-shake 0.22s ease-in-out infinite alternate;
-}
-
-.hud__action.mash b {
-  position: relative;
-  font-size: 19px;
-  font-weight: 900;
-  color: var(--text);
-  text-shadow: 0 0 16px rgba(255, 180, 87, 0.7);
-}
-
-.hud__action.mash em {
-  font-style: normal;
-}
-
-.hud__action.mash.full b {
-  color: var(--green);
-  text-shadow: 0 0 18px rgba(107, 255, 158, 0.8);
-}
-
-@keyframes mash-shake {
-  from {
-    transform: rotate(-2.5deg);
-  }
-  to {
-    transform: rotate(2.5deg);
-  }
-}
-
-/*
- * 홀드·연타가 실제로 시작되기 전에 미리 보여 주는 "준비" 배지. 리티클
- * 바로 아래에 떠서, 오므라드는 노트가 곧 도착한다는 걸 텍스트로도 알려 준다.
- * 다가올수록 게이지가 차오르고 텍스트가 은은하게 깜빡여 확실히 눈에 띈다.
- */
-.hud__action.preview {
-  position: absolute;
-  left: 50%;
-  top: calc(50% + 68px);
-  transform: translate(-50%, 0);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  pointer-events: none;
-  text-align: center;
-}
-
-.hud__action.preview span {
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.28em;
-  opacity: 0.85;
-  animation: preview-blink 0.9s ease-in-out infinite;
-}
-
-.hud__action.preview[data-kind='hold'] span {
-  color: var(--green);
-}
-
-.hud__action.preview[data-kind='mash'] span {
-  color: var(--amber);
-}
-
-.hud__action.preview .bar {
-  width: 120px;
-  height: 6px;
-  border-radius: 3px;
-  background: rgba(0, 0, 0, 0.4);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.55);
-  overflow: hidden;
-}
-
-.hud__action.preview .bar i {
-  display: block;
-  height: 100%;
-  border-radius: 3px;
-  background: rgba(255, 255, 255, 0.55);
-  transition: width 0.08s linear;
-}
-
-.hud__action.preview[data-kind='hold'] .bar i {
-  background: linear-gradient(90deg, rgba(107, 255, 158, 0.25), rgba(107, 255, 158, 0.75));
-}
-
-.hud__action.preview[data-kind='mash'] .bar i {
-  background: linear-gradient(90deg, rgba(255, 180, 87, 0.25), rgba(255, 180, 87, 0.75));
-}
-
-@keyframes preview-blink {
-  0%,
-  100% {
-    opacity: 0.5;
-  }
-  50% {
-    opacity: 1;
-  }
-}
-
-/*
- * 화면 정중앙 리티클. 모든 노트(스윙·에어·홀드·연타)가 여기서 크게
+ * 화면 정중앙 리티클. 모든 노트(스윙·에어)가 여기서 크게
  * 등장해 오므라들며 정중앙의 기준 링에 맞춰지는 순간이 곧 판정 시점이다.
  * 링 형태(테두리만, 배경 없음)라 뒤 건물 화면을 가리지 않는다.
  */
@@ -1056,17 +910,6 @@ kbd {
   margin: -17px 0 0 -17px;
   border-color: var(--magenta);
   box-shadow: 0 0 16px rgba(255, 79, 196, 0.8);
-}
-
-.reticle__note.hold {
-  border-color: var(--green);
-  box-shadow: 0 0 18px rgba(107, 255, 158, 0.8);
-}
-
-.reticle__note.mash {
-  border-radius: 8px;
-  border-color: var(--amber);
-  box-shadow: 0 0 18px rgba(255, 180, 87, 0.9);
 }
 
 /* 판정 결과가 나온 뒤 잠깐 그 색으로 테두리를 물들인다 */
@@ -1593,12 +1436,6 @@ input[type='password'] {
     width: 26px;
     height: 26px;
     margin: -13px 0 0 -13px;
-  }
-  .hud__action.hold,
-  .hud__action.mash {
-    width: 58px;
-    height: 58px;
-    margin: -29px 0 0 -29px;
   }
   .hud__progress {
     bottom: calc(14px + env(safe-area-inset-bottom));

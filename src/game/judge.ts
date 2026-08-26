@@ -58,37 +58,29 @@ export function newScore(totalNotes: number): ScoreState {
   };
 }
 
-/**
- * 판정 하나를 반영한다. 반환값은 이번 판정으로 얻은 점수.
- *
- * hold/mash 는 스윙만큼 무겁게 채점한다(정확도·점수·HP 전부 풀 가중치) — 웹을
- * 쏘는 것 못지않게 신경 써야 하는 진짜 액션이기 때문이다. 다만 "3연속 놓치면
- * 추락"하는 miss-streak 는 스윙 전용으로 남겨 둔다 — 그건 문자 그대로
- * 앵커를 놓쳐 추락하는 상황을 뜻하지, 홀드/연타를 어설프게 한 것과는 다르다.
- */
+/** 판정 하나를 반영한다. 반환값은 이번 판정으로 얻은 점수. */
 export function applyJudge(s: ScoreState, kind: Judgement, noteKind: NoteKind): number {
   const isSwing = noteKind === 'swing';
-  const isMajor = isSwing || noteKind === 'hold' || noteKind === 'mash';
 
   s.counts[kind]++;
   s.judged++;
-  s.accSum += ACC[kind] * (isMajor ? 1 : 0.85);
+  s.accSum += ACC[kind] * (isSwing ? 1 : 0.85);
 
   if (kind === 'MISS') {
     s.combo = 0;
     s.fullCombo = false;
-    s.hp += isMajor ? HP.MISS : HP.MISS * 0.4;
+    s.hp += isSwing ? HP.MISS : HP.MISS * 0.4;
     if (isSwing) s.missStreak++;
   } else {
     s.combo++;
     s.maxCombo = Math.max(s.maxCombo, s.combo);
-    s.hp += HP[kind] * (isMajor ? 1 : 0.6);
+    s.hp += HP[kind] * (isSwing ? 1 : 0.6);
     s.missStreak = 0;
   }
   s.hp = Math.max(0, Math.min(100, s.hp));
 
   const mult = 1 + Math.min(s.combo, 120) / 120;
-  const gained = Math.round(VALUE[kind] * mult * (isMajor ? 1 : 0.6));
+  const gained = Math.round(VALUE[kind] * mult * (isSwing ? 1 : 0.6));
   s.score += gained;
   return gained;
 }

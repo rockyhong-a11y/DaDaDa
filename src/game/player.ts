@@ -249,7 +249,7 @@ export class WebRope {
   constructor() {
     const geo = new CylinderGeometry(0.055, 0.11, 1, 5, 1, true);
     geo.translate(0, 0.5, 0);
-    this.mat = new MeshBasicMaterial({ color: 0xdff7ff, transparent: true, opacity: 0.6 });
+    this.mat = new MeshBasicMaterial({ color: 0xdff7ff, transparent: true, opacity: 0.36 });
     this.mesh = new Mesh(geo, this.mat);
     this.mesh.frustumCulled = false;
     this.mesh.visible = false;
@@ -266,7 +266,7 @@ export class WebRope {
     this.mesh.position.copy(from);
     this.mesh.scale.set(1, len, 1);
     this.mesh.quaternion.setFromUnitVectors(this.up, this.dirV.divideScalar(len));
-    this.mat.opacity = 0.6 * opacity;
+    this.mat.opacity = 0.36 * opacity;
   }
 
   hide(): void {
