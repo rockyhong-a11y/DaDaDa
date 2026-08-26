@@ -90,6 +90,13 @@ export interface StageResult {
 
 const LEAD_APPROACH = 220; // 리드인 동안 뒤에서 날아오는 거리(m)
 
+/**
+ * 홀드·연타는 스윙/에어보다 훨씬 먼저 예고해 준다 — 순간적으로 반응하는
+ * 노트가 아니라 "이제 곧 누르고 있어야 한다"를 미리 인지하고 준비할
+ * 시간이 필요한 노트라서다. 레인 접근 연출과 3D 예고 링 둘 다 이 값을 쓴다.
+ */
+const ACTION_PREVIEW_LEAD = 3.2;
+
 export class Game {
   readonly hud: HudState = {
     phase: 'loading',
@@ -787,7 +794,7 @@ export class Game {
       }
       if (found) {
         const remain = found.time - songTime;
-        if (remain > 0 && remain < 1.8) {
+        if (remain > 0 && remain < ACTION_PREVIEW_LEAD) {
           this.hud.nextActionKind = found.kind as 'hold' | 'mash';
           this.hud.nextActionRemain = remain;
         } else {
@@ -966,7 +973,7 @@ export class Game {
     else if (this.hud.mashActive) {
       this.markers.showMash(this.pos, this.chase.camera, this.elapsed, this.hud.mashCount / this.hud.mashTarget);
     } else if (this.hud.nextActionKind) {
-      const k = 1 - Math.max(0, Math.min(1, this.hud.nextActionRemain / 1.8));
+      const k = 1 - Math.max(0, Math.min(1, this.hud.nextActionRemain / ACTION_PREVIEW_LEAD));
       if (this.hud.nextActionKind === 'hold') this.markers.showHoldPreview(this.pos, this.chase.camera, k);
       else this.markers.showMashPreview(this.pos, this.chase.camera, k);
     } else this.markers.hideAction();
@@ -987,11 +994,13 @@ export class Game {
 
     h.lane.length = 0;
     const notes = this.chart.notes;
-    for (let i = this.noteCursor; i < notes.length && h.lane.length < 18; i++) {
+    // 홀드·연타는 훨씬 먼 예고 구간(ACTION_PREVIEW_LEAD)까지 미리 끌어와야
+    // 레인에서도 스윙/에어보다 한참 먼저부터 다가오는 게 보인다.
+    for (let i = this.noteCursor; i < notes.length && h.lane.length < 22; i++) {
       const n = notes[i];
       const remain = n.time - songTime;
       if (remain < -0.25) continue;
-      if (remain > 1.9) break;
+      if (remain > ACTION_PREVIEW_LEAD + 0.3) break;
       const holdEndRemain = n.kind === 'hold' ? (n.holdEnd ?? n.time) - songTime : undefined;
       h.lane.push({ remain, kind: n.kind, hit: noteState.get(n) ?? null, holdEndRemain });
     }

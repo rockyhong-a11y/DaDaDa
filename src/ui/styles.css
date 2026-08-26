@@ -876,6 +876,62 @@ kbd {
   }
 }
 
+/*
+ * 홀드·연타가 실제로 시작되기 전에 미리 보여 주는 "준비" 배지.
+ * 다가올수록 게이지가 차오르고 텍스트가 은은하게 깜빡여 확실히 눈에 띈다 —
+ * 순간 반응이 아니라 미리 준비하고 있어야 하는 노트라는 걸 알려 주는 역할.
+ */
+.hud__action.preview span {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.28em;
+  opacity: 0.85;
+  animation: preview-blink 0.9s ease-in-out infinite;
+}
+
+.hud__action.preview[data-kind='hold'] span {
+  color: var(--green);
+}
+
+.hud__action.preview[data-kind='mash'] span {
+  color: var(--amber);
+}
+
+.hud__action.preview .bar {
+  width: 120px;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.4);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+}
+
+.hud__action.preview .bar i {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.55);
+  transition: width 0.08s linear;
+}
+
+.hud__action.preview[data-kind='hold'] .bar i {
+  background: linear-gradient(90deg, rgba(107, 255, 158, 0.25), rgba(107, 255, 158, 0.75));
+}
+
+.hud__action.preview[data-kind='mash'] .bar i {
+  background: linear-gradient(90deg, rgba(255, 180, 87, 0.25), rgba(255, 180, 87, 0.75));
+}
+
+@keyframes preview-blink {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
 /* 타이밍 레인 */
 
 .lane {

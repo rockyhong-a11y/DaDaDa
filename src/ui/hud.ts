@@ -18,6 +18,13 @@ const JUDGE_LABEL: Record<string, string> = {
 /** 레인에서 노트가 판정선까지 다가오는 데 보이는 시간(초) */
 const LANE_LEAD = 1.35;
 
+/**
+ * 홀드·연타는 순간 반응이 아니라 미리 준비해서 눌러야 하는 노트라
+ * 스윙/에어보다 훨씬 먼 거리(=훨씬 이른 시점)부터 레인에 들어와 천천히
+ * 다가오게 한다. game.ts 의 ACTION_PREVIEW_LEAD 와 맞춰 둔다.
+ */
+const LANE_LEAD_ACTION = 3.2;
+
 /** 인게임 HUD. DOM 으로 그려 가볍고 선명하게 유지한다. */
 export class Hud {
   readonly el: HTMLDivElement;
@@ -42,6 +49,9 @@ export class Hud {
   private readonly mashWrap: HTMLElement;
   private readonly mashCountEl: HTMLElement;
   private readonly mashTargetEl: HTMLElement;
+  private readonly previewWrap: HTMLElement;
+  private readonly previewLabel: HTMLElement;
+  private readonly previewBar: HTMLElement;
   private readonly lane: HTMLElement;
   private readonly hitline: HTMLElement;
   private readonly progBar: HTMLElement;
@@ -83,6 +93,10 @@ export class Hud {
         <span>연타!</span>
         <b><em>0</em> / <em class="target">1</em></b>
       </div>
+      <div class="hud__action preview" style="display:none">
+        <span></span>
+        <div class="bar"><i style="width:0%"></i></div>
+      </div>
       <div class="lane">
         <div class="lane__track"></div>
         <div class="lane__hitline"></div>
@@ -114,6 +128,9 @@ export class Hud {
     this.mashWrap = q('.hud__action.mash');
     this.mashCountEl = q('.hud__action.mash em:not(.target)');
     this.mashTargetEl = q('.hud__action.mash em.target');
+    this.previewWrap = q('.hud__action.preview');
+    this.previewLabel = q('.hud__action.preview span');
+    this.previewBar = q('.hud__action.preview .bar i');
     this.lane = q('.lane');
     this.hitline = q('.lane__hitline');
     this.progBar = q('.hud__progress .bar i');
@@ -190,6 +207,18 @@ export class Hud {
       this.mashWrap.classList.toggle('full', s.mashCount >= s.mashTarget);
     }
 
+    // 아직 시작되지 않은 홀드/연타를 미리 알려 준다 — 게이지가 차오를수록
+    // 곧 눌러야 한다는 걸 인지하고 준비할 수 있게.
+    if (s.nextActionKind) {
+      this.previewWrap.style.display = '';
+      this.previewWrap.dataset.kind = s.nextActionKind;
+      this.previewLabel.textContent = s.nextActionKind === 'hold' ? '홀드 준비' : '연타 준비';
+      const k = 1 - Math.max(0, Math.min(1, s.nextActionRemain / LANE_LEAD_ACTION));
+      this.previewBar.style.width = `${Math.round(k * 100)}%`;
+    } else {
+      this.previewWrap.style.display = 'none';
+    }
+
     if (s.lastJudge && s.lastJudgeAt !== this.lastJudgeAt) {
       this.lastJudgeAt = s.lastJudgeAt;
       this.judgeEl.textContent = JUDGE_LABEL[s.lastJudge];
@@ -257,7 +286,9 @@ export class Hud {
       this.countEl.style.display = 'none';
     }
 
-    // 타이밍 레인: 오른쪽에서 중앙 판정선으로 흘러온다
+    // 타이밍 레인: 오른쪽에서 중앙 판정선으로 흘러온다.
+    // 홀드·연타는 훨씬 먼 거리(LANE_LEAD_ACTION)부터 등장해 스윙/에어보다
+    // 한참 일찍, 훨씬 천천히 다가온다 — 미리 보고 준비할 여유를 주기 위해서다.
     const half = this.lane.clientWidth / 2;
     for (let i = 0; i < Math.max(this.notePool.length, s.lane.length); i++) {
       const el = this.notePool[i];
@@ -266,16 +297,19 @@ export class Hud {
         if (el) el.style.display = 'none';
         continue;
       }
+      const isAction = n.kind === 'hold' || n.kind === 'mash';
+      const lead = isAction ? LANE_LEAD_ACTION : LANE_LEAD;
       const node = this.noteEl(i);
-      const x = half + (n.remain / LANE_LEAD) * half;
+      const x = half + (n.remain / lead) * half;
       node.style.display = '';
       node.className = `lane__note ${n.kind}`;
-      node.style.opacity = n.remain > LANE_LEAD ? '0' : '1';
+      node.style.opacity = n.remain > lead ? '0' : '1';
       if (n.kind === 'hold' && n.holdEndRemain !== undefined) {
-        // 시작~종료 구간을 잇는 막대로 그려 "이 구간 내내 눌러야 한다"는 걸 보여 준다
-        const xEnd = half + (Math.max(0, n.holdEndRemain) / LANE_LEAD) * half;
-        node.style.left = `${xEnd}px`;
-        node.style.width = `${Math.max(4, x - xEnd)}px`;
+        // 시작(왼쪽, 판정선에 먼저 닿음) ~ 종료(오른쪽, 아직 다가오는 중) 를
+        // 잇는 막대로 그려 "이 구간 내내 눌러야 한다"는 걸 보여 준다.
+        const xEnd = half + (Math.max(0, n.holdEndRemain) / lead) * half;
+        node.style.left = `${x}px`;
+        node.style.width = `${Math.max(4, xEnd - x)}px`;
       } else {
         node.style.left = `${x}px`;
         node.style.width = '';
