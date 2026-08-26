@@ -612,13 +612,14 @@ kbd {
 
 /*
  * 태고의 달인처럼 판정 텍스트를 화면 중앙이 아니라 실제 입력이 일어나는
- * 판정선(레인) 바로 위에 띄운다 — 시선이 손가락 닿는 지점에서 벗어나지
- * 않아야 "지금 내 터치가 어떻게 판정됐는지"를 곧바로 알 수 있다.
+ * 판정선(레인) 바로 아래에 띄운다 — 레인이 화면 상단으로 옮겨감에 따라
+ * 판정 텍스트도 그 바로 밑, 즉 플레이어 시야(건물·캐릭터가 보이는 영역)
+ * 쪽으로 흘러들어오게 한다.
  */
 .hud__judge {
   position: absolute;
   left: 50%;
-  bottom: calc(146px + env(safe-area-inset-bottom));
+  top: calc(248px + env(safe-area-inset-top));
   transform: translate(-50%, 0);
   text-align: center;
   opacity: 0;
@@ -647,7 +648,7 @@ kbd {
 @keyframes judge-pop {
   0% {
     opacity: 0;
-    transform: translate(-50%, 12%) scale(0.6);
+    transform: translate(-50%, -12%) scale(0.6);
   }
   20% {
     opacity: 1;
@@ -661,11 +662,11 @@ kbd {
   }
   72% {
     opacity: 1;
-    transform: translate(-50%, -10px) scale(1);
+    transform: translate(-50%, 10px) scale(1);
   }
   100% {
     opacity: 0;
-    transform: translate(-50%, -38px) scale(0.96);
+    transform: translate(-50%, 38px) scale(0.96);
   }
 }
 
@@ -932,37 +933,50 @@ kbd {
   }
 }
 
-/* 타이밍 레인 */
-
+/*
+ * 타이밍 레인. 건물 실루엣과 같이 보여야 "이 노트가 저 건물로 가는
+ * 스윙이구나"를 바로 알 수 있어서, 화면 하단이 아니라 상단 — 카메라가
+ * 올려다보는 건물들이 실제로 보이는 자리 — 에 굵게 띄운다. 배경은 짙게
+ * 칠하지 않고 흐리게만 걸어(backdrop-filter) 뒤 건물이 비쳐 보이게 하고,
+ * 대신 판정선·노트는 글로우를 세게 줘서 어떤 배경 위에서도 묻히지 않게 한다.
+ */
 .lane {
   position: absolute;
   left: 50%;
-  bottom: calc(74px + env(safe-area-inset-bottom));
+  top: calc(152px + env(safe-area-inset-top));
   transform: translateX(-50%);
   width: min(560px, 84vw);
-  height: 58px;
+  height: 84px;
 }
 
 .lane__track {
   position: absolute;
-  inset: 20px 0;
-  border-radius: 12px;
+  inset: 26px 0;
+  border-radius: 14px;
   border: 1px solid var(--line);
-  background: linear-gradient(90deg, rgba(6, 9, 20, 0), rgba(6, 9, 20, 0.88) 20%, rgba(6, 9, 20, 0.9) 80%, rgba(6, 9, 20, 0));
-  box-shadow: inset 0 0 24px rgba(0, 0, 0, 0.55);
+  background: linear-gradient(
+    90deg,
+    rgba(6, 9, 20, 0),
+    rgba(6, 9, 20, 0.42) 20%,
+    rgba(6, 9, 20, 0.46) 80%,
+    rgba(6, 9, 20, 0)
+  );
+  backdrop-filter: blur(7px) saturate(1.15);
+  -webkit-backdrop-filter: blur(7px) saturate(1.15);
+  box-shadow: inset 0 0 24px rgba(0, 0, 0, 0.4);
   overflow: hidden;
 }
 
 .lane__hitline {
   position: absolute;
   left: 50%;
-  top: 4px;
-  bottom: 4px;
-  width: 3px;
-  margin-left: -1.5px;
+  top: 2px;
+  bottom: 2px;
+  width: 4px;
+  margin-left: -2px;
   border-radius: 2px;
   background: linear-gradient(180deg, var(--cyan), rgba(56, 246, 255, 0.25));
-  box-shadow: 0 0 18px rgba(56, 246, 255, 0.75);
+  box-shadow: 0 0 22px rgba(56, 246, 255, 0.85), 0 0 8px rgba(56, 246, 255, 0.95);
 }
 
 .lane__hitline.beat {
@@ -1022,43 +1036,43 @@ kbd {
 .lane__note {
   position: absolute;
   top: 50%;
-  width: 13px;
-  height: 13px;
-  margin: -6.5px 0 0 -6.5px;
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
   border-radius: 3px;
   transform: rotate(45deg);
   background: var(--cyan);
-  box-shadow: 0 0 14px rgba(56, 246, 255, 0.85);
+  box-shadow: 0 0 16px rgba(56, 246, 255, 0.9), 0 0 5px rgba(255, 255, 255, 0.7);
   will-change: left;
 }
 
 .lane__note.air {
-  width: 9px;
-  height: 9px;
-  margin: -4.5px 0 0 -4.5px;
+  width: 11px;
+  height: 11px;
+  margin: -5.5px 0 0 -5.5px;
   border-radius: 50%;
   background: var(--magenta);
-  box-shadow: 0 0 12px rgba(255, 79, 196, 0.8);
+  box-shadow: 0 0 14px rgba(255, 79, 196, 0.85), 0 0 5px rgba(255, 255, 255, 0.6);
   transform: none;
 }
 
 /* hold 는 시작~종료를 잇는 막대다. left/width 는 JS 가 직접 지정한다. */
 .lane__note.hold {
-  height: 12px;
-  margin: -6px 0 0 0;
-  border-radius: 6px;
-  background: linear-gradient(90deg, rgba(107, 255, 158, 0.3), var(--green));
-  box-shadow: 0 0 14px rgba(107, 255, 158, 0.7);
+  height: 15px;
+  margin: -7.5px 0 0 0;
+  border-radius: 7px;
+  background: linear-gradient(90deg, rgba(107, 255, 158, 0.4), var(--green));
+  box-shadow: 0 0 16px rgba(107, 255, 158, 0.8), 0 0 5px rgba(255, 255, 255, 0.5);
   transform: none;
 }
 
 .lane__note.mash {
-  width: 14px;
-  height: 14px;
-  margin: -7px 0 0 -7px;
+  width: 17px;
+  height: 17px;
+  margin: -8.5px 0 0 -8.5px;
   border-radius: 3px;
   background: var(--amber);
-  box-shadow: 0 0 14px rgba(255, 180, 87, 0.9);
+  box-shadow: 0 0 16px rgba(255, 180, 87, 0.95), 0 0 5px rgba(255, 255, 255, 0.6);
   animation: mash-note-pulse 0.4s ease-in-out infinite alternate;
 }
 
@@ -1517,10 +1531,11 @@ input[type='password'] {
     min-width: 0;
   }
   .lane {
-    bottom: 92px;
+    top: calc(136px + env(safe-area-inset-top));
+    height: 76px;
   }
   .hud__judge {
-    bottom: 164px;
+    top: calc(228px + env(safe-area-inset-top));
   }
   .hud__heat {
     display: none;
@@ -1569,11 +1584,14 @@ input[type='password'] {
     font-size: 15px;
   }
   .lane {
-    bottom: calc(46px + env(safe-area-inset-bottom));
-    height: 46px;
+    top: calc(96px + env(safe-area-inset-top));
+    height: 54px;
+  }
+  .lane__track {
+    inset: 14px 0;
   }
   .hud__judge {
-    bottom: calc(106px + env(safe-area-inset-bottom));
+    top: calc(160px + env(safe-area-inset-top));
   }
   .hud__progress {
     bottom: calc(14px + env(safe-area-inset-bottom));
