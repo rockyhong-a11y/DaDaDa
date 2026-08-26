@@ -231,11 +231,13 @@ export class Hud {
       this.countEl.style.display = 'none';
     }
 
-    // 리티클: 노트가 크게 등장해 오므라들며 화면 정중앙(기준선)에 맞춰진다.
-    // 등장 시간(lead)은 스테이지 템포에 맞춰 game.ts 가 정한다 — 빠른
-    // 스테이지일수록 짧게 잡아 링이 과하게 겹치지 않게 한다. 판정이 난
-    // 뒤에도 잠깐 남아(FADE) 판정 색으로 물들었다 사라진다.
+    // 리티클: 노트가 화면 좌우 가장자리에서 옅게 등장해 정중앙(기준선)으로
+    // 다가오며 밝아지고 오므라든다. 등장 시간(lead)은 스테이지 템포에 맞춰
+    // game.ts 가 정한다 — 빠른 스테이지일수록 짧게 잡아 링이 과하게
+    // 겹치지 않게 한다. 판정이 난 뒤에도 잠깐 중앙에 남아(FADE) 판정
+    // 색으로 물들었다 사라진다.
     const lead = s.noteLead;
+    const edgeDist = Math.max(120, this.el.clientWidth / 2 - 60);
     for (let i = 0; i < Math.max(this.notePool.length, s.lane.length); i++) {
       const el = this.notePool[i];
       const n = s.lane[i];
@@ -245,13 +247,20 @@ export class Hud {
       }
       const node = this.noteEl(i);
       const k = Math.max(0, Math.min(1, n.remain / lead));
+      // approach: 0 = 방금 가장자리에서 등장, 1 = 중앙 기준선에 도달(판정 시점)
+      const approach = 1 - k;
       const scale = 1 + k * REACH;
+      const offset = (1 - approach) * n.side * edgeDist;
+      const saturate = 0.12 + approach * 0.88;
+      const brightness = 0.45 + approach * 0.7;
       const opacity =
         n.remain >= 0 ? Math.min(1, (lead - n.remain) / FADE) : Math.max(0, (FADE + n.remain) / FADE);
       node.style.display = '';
       node.className = `reticle__note ${n.kind}`;
       node.style.opacity = String(opacity);
-      node.style.transform = n.kind === 'swing' ? `rotate(45deg) scale(${scale})` : `scale(${scale})`;
+      node.style.filter = `saturate(${saturate.toFixed(2)}) brightness(${brightness.toFixed(2)})`;
+      const rotate = n.kind === 'swing' ? ' rotate(45deg)' : '';
+      node.style.transform = `translateX(${offset.toFixed(1)}px)${rotate} scale(${scale.toFixed(3)})`;
       if (n.hit) node.dataset.judge = n.hit;
       else delete node.dataset.judge;
     }

@@ -258,6 +258,9 @@ export function buildChart(city: City): Chart {
     });
     prev = to;
   }
+  // 피날레 나선 구간은 routeSwings 구간과 달리 관통 검사를 한 번도 안 거쳤다 —
+  // 타워 자체나 그 주변 건물을 그대로 뚫고 지나가는 버그의 원인이었다.
+  resolveFinaleClearance(city, segments, routeSwings, finaleSwings);
 
   balanceTouchDensity(notes, stage);
 
@@ -373,6 +376,47 @@ function resolveClearance(
     for (let j = 0; j < routeSwings; j++) {
       segments[j].anchor.y = Math.max(segments[j].anchorRoof + 6, Math.max(flight[j], flight[j + 1]) + 19);
     }
+  }
+}
+
+/**
+ * 피날레 나선 구간(타워를 감아 오르는 구간)의 관통을 막는다.
+ * routeSwings 구간과 같은 방식으로 궤적을 샘플링해 검사하지만, 이쪽은
+ * 도착 지점이 고정 경유점이 아니라 매 구간 새로 계산되는 나선이라 접근이
+ * 다르다 — 부족한 만큼 그 구간의 시작·도착 고도(양끝)와 앵커 고도를 그대로
+ * 밀어 올린다. 시작 고도(from)는 이전 구간의 도착 고도와 같은 좌표
+ * 객체를 공유하므로, 첫 구간에서 밀어 올리면 route 구간 마지막 착지점까지
+ * 자동으로 반영된다 — 실제로 침투가 가장 먼저 발생하는 지점이 바로 거기다
+ * (평지 고도에서 타워 쪽으로 급격히 붙는 첫 도약). 오르는 구간이라 고도를
+ * 더 올리는 것 자체가 자연스럽고, 몇 차례 반복해 수렴시킨다.
+ */
+function resolveFinaleClearance(
+  city: City,
+  segments: SwingSegment[],
+  routeSwings: number,
+  finaleSwings: number,
+): void {
+  const CLEAR = 11;
+  const PROBE = 22;
+  const tmp: Vec3 = { x: 0, y: 0, z: 0 };
+  for (let pass = 0; pass < 6; pass++) {
+    let worst = 0;
+    for (let k = 0; k < finaleSwings; k++) {
+      const seg = segments[routeSwings + k];
+      let need = 0;
+      for (let s = 0; s <= 10; s++) {
+        swingPoint(seg, s / 10, tmp);
+        const top = city.skylineAt(tmp.x, tmp.z, PROBE) + CLEAR;
+        if (top > tmp.y) need = Math.max(need, top - tmp.y);
+      }
+      if (need > 0) {
+        seg.from.y += need;
+        seg.to.y += need;
+        seg.anchor.y += need;
+        worst = Math.max(worst, need);
+      }
+    }
+    if (worst < 0.5) break;
   }
 }
 

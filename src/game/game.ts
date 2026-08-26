@@ -25,6 +25,8 @@ export interface LaneNote {
   remain: number;
   kind: Note['kind'];
   hit: Judgement | null;
+  /** 화면 어느 쪽 가장자리에서 등장하는가 (해당 스윙이 향하는 좌우 방향과 맞춘다) */
+  side: 1 | -1;
 }
 
 /** HUD 가 매 프레임 읽어가는 상태 스냅샷 */
@@ -813,12 +815,14 @@ export class Game {
 
     h.lane.length = 0;
     const notes = this.chart.notes;
+    const segs = this.chart.segments;
     for (let i = this.noteCursor; i < notes.length && h.lane.length < 22; i++) {
       const n = notes[i];
       const remain = n.time - songTime;
       if (remain < -0.25) continue;
       if (remain > h.noteLead + 0.3) break;
-      h.lane.push({ remain, kind: n.kind, hit: noteState.get(n) ?? null });
+      const side = segs[Math.min(n.swingIndex, segs.length - 1)]?.side ?? 1;
+      h.lane.push({ remain, kind: n.kind, hit: noteState.get(n) ?? null, side });
     }
   }
 

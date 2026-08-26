@@ -30,22 +30,31 @@ for (const s of STAGES) {
   );
 }
 
-// 관통 검사: 궤적 샘플이 주변 옥상보다 낮으면 건물을 뚫는 것이다
+// 관통 검사: 궤적 샘플이 주변 옥상보다 낮으면 건물을 뚫는 것이다 (경로/피날레 둘 다)
 for (const s of STAGES) {
   const city = new City(s);
   const c = buildChart(city);
   let hits = 0;
   let worst = 0;
+  let finaleHits = 0;
+  let finaleWorst = 0;
   for (const g of c.segments) {
-    if (g.finale) continue;
     for (let k = 0; k <= 10; k++) {
       swingPoint(g, k / 10, tmp);
       const pen = city.skylineAt(tmp.x, tmp.z, 22) + 4 - tmp.y;
       if (pen > 0) {
-        hits++;
-        worst = Math.max(worst, pen);
+        if (g.finale) {
+          finaleHits++;
+          finaleWorst = Math.max(finaleWorst, pen);
+        } else {
+          hits++;
+          worst = Math.max(worst, pen);
+        }
       }
     }
   }
-  console.log(`${s.id.padEnd(9)} 관통 샘플=${hits} 최대침투=${worst.toFixed(1)}m`);
+  console.log(
+    `${s.id.padEnd(9)} 관통 샘플=${hits} 최대침투=${worst.toFixed(1)}m ` +
+      `피날레 관통=${finaleHits} 피날레최대침투=${finaleWorst.toFixed(1)}m`,
+  );
 }
