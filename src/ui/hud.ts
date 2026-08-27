@@ -31,6 +31,7 @@ export class Hud {
   private readonly hpWrap: HTMLElement;
   private readonly hpBar: HTMLElement;
   private readonly feverWrap: HTMLElement;
+  private readonly glideWrap: HTMLElement;
   private readonly altEl: HTMLElement;
   private readonly spdEl: HTMLElement;
   private readonly judgeWrap: HTMLElement;
@@ -69,6 +70,7 @@ export class Hud {
       </div>
       <div class="hud__hp"><label>SWING POWER</label><div class="bar"><i style="width:0%"></i></div></div>
       <div class="hud__fever" style="display:none"><b>FEVER!</b><span>연타로 밀어붙여라</span></div>
+      <div class="hud__glide" style="display:none"><b>GLIDE</b><span>서울이 발밑에 있다</span></div>
       <div class="hud__alt">
         <div class="hud__alt-row"><b>0</b><em>m</em></div>
         <span>ALTITUDE</span>
@@ -92,6 +94,7 @@ export class Hud {
     this.hpWrap = q('.hud__hp');
     this.hpBar = q('.hud__hp .bar i');
     this.feverWrap = q('.hud__fever');
+    this.glideWrap = q('.hud__glide');
     this.altEl = q('.hud__alt-row b');
     this.spdEl = q('.hud__alt-row.spd b');
     this.judgeWrap = q('.hud__judge');
@@ -199,6 +202,8 @@ export class Hud {
     this.hpBar.style.width = `${s.power}%`;
     this.hpWrap.classList.toggle('fever', s.feverActive);
     this.feverWrap.style.display = s.feverActive ? '' : 'none';
+    // 활강 배너는 피버와 자리가 겹치므로 피버가 우선한다
+    this.glideWrap.style.display = s.gliding && !s.feverActive ? '' : 'none';
 
     this.altEl.textContent = String(Math.round(s.altitude));
     this.spdEl.textContent = String(Math.min(9999, Math.round(s.speed * 3.6)));

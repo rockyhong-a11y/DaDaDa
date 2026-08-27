@@ -1,6 +1,6 @@
 import type { AudioEngine } from './context';
 import type { Conductor } from './conductor';
-import { Voices, midiToFreq } from './voices';
+import { Voices, midiToFreq, type Vowel } from './voices';
 import type { StageDef } from '../data/types';
 
 /** 리드 멜로디 한 음. step 은 2마디(32칸) 프레이즈 안에서의 16분음표 위치. */
@@ -10,6 +10,15 @@ interface LeadHit {
   degree: number;
   /** 길이(16분음표 개수). 생략 시 3. */
   len?: number;
+}
+
+/**
+ * 보컬 한 음절. LeadHit 에 모음을 더한 것.
+ * 자음 합성까지는 하지 않으므로 가사는 모음의 흐름으로만 표현한다 —
+ * 실제 노래의 "아-아- 오오-" 같은 훅 라인에 해당한다.
+ */
+interface VocalNote extends LeadHit {
+  vowel: Vowel;
 }
 
 /**
@@ -37,6 +46,11 @@ interface StylePreset {
   /** 코러스에서 노래하는 리드 훅. 두 개를 번갈아 써서 반복해도 덜 기계적으로 들리게 한다. */
   leadPhrases: LeadHit[][];
   leadOctave: number;
+  /** 보컬 훅. 코러스에서 메인 멜로디를 노래한다. 두 프레이즈를 번갈아 쓴다. */
+  vocalPhrases: VocalNote[][];
+  /** 벌스에서 흐르는 낮고 옅은 보컬 라인 (없으면 벌스는 무보컬) */
+  vocalVersePhrase: VocalNote[];
+  vocalOctave: number;
 }
 
 const PRESETS: Record<StageDef['musicStyle'], StylePreset> = {
@@ -70,6 +84,29 @@ const PRESETS: Record<StageDef['musicStyle'], StylePreset> = {
         { step: 14, degree: 4, len: 3 },
         { step: 20, degree: 3, len: 2 },
         { step: 26, degree: 1, len: 4 },
+      ],
+    ],
+    vocalOctave: 1,
+    vocalVersePhrase: [
+      { step: 4, degree: 0, len: 6, vowel: 'u' },
+      { step: 16, degree: 2, len: 6, vowel: 'o' },
+      { step: 26, degree: 1, len: 5, vowel: 'u' },
+    ],
+    vocalPhrases: [
+      [
+        { step: 0, degree: 2, len: 5, vowel: 'a' },
+        { step: 6, degree: 3, len: 4, vowel: 'a' },
+        { step: 12, degree: 4, len: 6, vowel: 'o' },
+        { step: 20, degree: 2, len: 4, vowel: 'e' },
+        { step: 25, degree: 1, len: 7, vowel: 'a' },
+      ],
+      [
+        { step: 0, degree: 4, len: 4, vowel: 'a' },
+        { step: 5, degree: 3, len: 4, vowel: 'e' },
+        { step: 10, degree: 2, len: 5, vowel: 'a' },
+        { step: 17, degree: 4, len: 4, vowel: 'o' },
+        { step: 22, degree: 3, len: 3, vowel: 'a' },
+        { step: 26, degree: 0, len: 6, vowel: 'u' },
       ],
     ],
   },
@@ -110,6 +147,26 @@ const PRESETS: Record<StageDef['musicStyle'], StylePreset> = {
         { step: 30, degree: 0, len: 4 },
       ],
     ],
+    vocalOctave: 1,
+    vocalVersePhrase: [
+      { step: 0, degree: 0, len: 8, vowel: 'o' },
+      { step: 16, degree: 3, len: 8, vowel: 'u' },
+    ],
+    vocalPhrases: [
+      [
+        { step: 0, degree: 0, len: 6, vowel: 'a' },
+        { step: 8, degree: 3, len: 6, vowel: 'o' },
+        { step: 16, degree: 4, len: 6, vowel: 'a' },
+        { step: 24, degree: 2, len: 8, vowel: 'e' },
+      ],
+      [
+        { step: 0, degree: 4, len: 6, vowel: 'o' },
+        { step: 8, degree: 2, len: 5, vowel: 'a' },
+        { step: 14, degree: 3, len: 6, vowel: 'e' },
+        { step: 22, degree: 1, len: 4, vowel: 'a' },
+        { step: 27, degree: 0, len: 5, vowel: 'u' },
+      ],
+    ],
   },
   kpop: {
     kick: 'x-----x-x-------',
@@ -146,6 +203,32 @@ const PRESETS: Record<StageDef['musicStyle'], StylePreset> = {
         { step: 20, degree: 3, len: 1 },
         { step: 22, degree: 4, len: 2 },
         { step: 26, degree: 3, len: 6 },
+      ],
+    ],
+    vocalOctave: 1,
+    vocalVersePhrase: [
+      { step: 2, degree: 1, len: 3, vowel: 'e' },
+      { step: 10, degree: 0, len: 4, vowel: 'a' },
+      { step: 20, degree: 2, len: 4, vowel: 'o' },
+    ],
+    vocalPhrases: [
+      [
+        { step: 0, degree: 4, len: 3, vowel: 'a' },
+        { step: 3, degree: 4, len: 2, vowel: 'a' },
+        { step: 6, degree: 3, len: 4, vowel: 'e' },
+        { step: 12, degree: 2, len: 3, vowel: 'a' },
+        { step: 16, degree: 4, len: 3, vowel: 'i' },
+        { step: 20, degree: 3, len: 3, vowel: 'a' },
+        { step: 24, degree: 1, len: 6, vowel: 'o' },
+      ],
+      [
+        { step: 0, degree: 2, len: 3, vowel: 'a' },
+        { step: 4, degree: 3, len: 3, vowel: 'i' },
+        { step: 8, degree: 4, len: 4, vowel: 'a' },
+        { step: 14, degree: 2, len: 3, vowel: 'e' },
+        { step: 18, degree: 1, len: 3, vowel: 'a' },
+        { step: 22, degree: 3, len: 3, vowel: 'o' },
+        { step: 26, degree: 0, len: 6, vowel: 'a' },
       ],
     ],
   },
@@ -188,6 +271,30 @@ const PRESETS: Record<StageDef['musicStyle'], StylePreset> = {
         { step: 24, degree: 2, len: 1 },
         { step: 27, degree: 4, len: 1 },
         { step: 30, degree: 2, len: 2 },
+      ],
+    ],
+    vocalOctave: 1,
+    vocalVersePhrase: [
+      { step: 6, degree: 0, len: 3, vowel: 'u' },
+      { step: 22, degree: 2, len: 3, vowel: 'o' },
+    ],
+    vocalPhrases: [
+      [
+        { step: 0, degree: 3, len: 2, vowel: 'a' },
+        { step: 3, degree: 4, len: 2, vowel: 'e' },
+        { step: 7, degree: 2, len: 3, vowel: 'a' },
+        { step: 12, degree: 4, len: 2, vowel: 'i' },
+        { step: 16, degree: 3, len: 3, vowel: 'a' },
+        { step: 21, degree: 1, len: 2, vowel: 'e' },
+        { step: 25, degree: 2, len: 5, vowel: 'o' },
+      ],
+      [
+        { step: 1, degree: 4, len: 2, vowel: 'i' },
+        { step: 5, degree: 2, len: 2, vowel: 'a' },
+        { step: 9, degree: 3, len: 3, vowel: 'e' },
+        { step: 14, degree: 1, len: 2, vowel: 'a' },
+        { step: 18, degree: 4, len: 3, vowel: 'a' },
+        { step: 24, degree: 0, len: 6, vowel: 'u' },
       ],
     ],
   },
@@ -236,6 +343,31 @@ const PRESETS: Record<StageDef['musicStyle'], StylePreset> = {
         { step: 24, degree: 4, len: 4 },
       ],
     ],
+    vocalOctave: 1,
+    vocalVersePhrase: [
+      { step: 8, degree: 0, len: 4, vowel: 'a' },
+      { step: 24, degree: 1, len: 4, vowel: 'o' },
+    ],
+    vocalPhrases: [
+      [
+        { step: 0, degree: 4, len: 3, vowel: 'a' },
+        { step: 4, degree: 4, len: 2, vowel: 'a' },
+        { step: 8, degree: 3, len: 3, vowel: 'e' },
+        { step: 12, degree: 4, len: 3, vowel: 'a' },
+        { step: 16, degree: 2, len: 3, vowel: 'i' },
+        { step: 20, degree: 3, len: 3, vowel: 'a' },
+        { step: 24, degree: 4, len: 6, vowel: 'a' },
+      ],
+      [
+        { step: 0, degree: 2, len: 3, vowel: 'a' },
+        { step: 4, degree: 3, len: 3, vowel: 'a' },
+        { step: 8, degree: 4, len: 4, vowel: 'i' },
+        { step: 14, degree: 3, len: 3, vowel: 'e' },
+        { step: 18, degree: 4, len: 3, vowel: 'a' },
+        { step: 22, degree: 2, len: 3, vowel: 'a' },
+        { step: 26, degree: 0, len: 6, vowel: 'o' },
+      ],
+    ],
   },
 };
 
@@ -268,6 +400,8 @@ interface Section {
   subBass: boolean;
   pad: boolean;
   lead: boolean;
+  /** 보컬: 'none' | 'verse'(옅은 라인) | 'hook'(합창 훅) */
+  vocal: 'none' | 'verse' | 'hook';
   ride: boolean;
   crashOnEntry: boolean;
 }
@@ -282,16 +416,17 @@ const ARRANGEMENT_PLAN: {
   subBass: boolean;
   pad: boolean;
   lead: boolean;
+  vocal: 'none' | 'verse' | 'hook';
   ride: boolean;
   crash: boolean;
 }[] = [
-  { name: 'intro', frac: 0.06, chords: 'A', intensity: 0.55, drumMode: 'sparse', bass: false, subBass: false, pad: true, lead: false, ride: false, crash: false },
-  { name: 'verseA', frac: 0.24, chords: 'A', intensity: 0.75, drumMode: 'full', bass: true, subBass: false, pad: true, lead: false, ride: false, crash: true },
-  { name: 'buildA', frac: 0.06, chords: 'A', intensity: 0.85, drumMode: 'roll', bass: false, subBass: false, pad: false, lead: false, ride: false, crash: false },
-  { name: 'chorusA', frac: 0.2, chords: 'B', intensity: 1.0, drumMode: 'full', bass: true, subBass: true, pad: true, lead: true, ride: true, crash: true },
-  { name: 'verseB', frac: 0.16, chords: 'A', intensity: 0.5, drumMode: 'sparse', bass: true, subBass: false, pad: true, lead: false, ride: false, crash: false },
-  { name: 'buildB', frac: 0.06, chords: 'A', intensity: 0.9, drumMode: 'roll', bass: false, subBass: false, pad: false, lead: false, ride: false, crash: false },
-  { name: 'chorusB', frac: 0.22, chords: 'B', intensity: 1.0, drumMode: 'full', bass: true, subBass: true, pad: true, lead: true, ride: true, crash: true },
+  { name: 'intro', frac: 0.06, chords: 'A', intensity: 0.55, drumMode: 'sparse', bass: false, subBass: false, pad: true, lead: false, vocal: 'none', ride: false, crash: false },
+  { name: 'verseA', frac: 0.24, chords: 'A', intensity: 0.75, drumMode: 'full', bass: true, subBass: false, pad: true, lead: false, vocal: 'verse', ride: false, crash: true },
+  { name: 'buildA', frac: 0.06, chords: 'A', intensity: 0.85, drumMode: 'roll', bass: false, subBass: false, pad: false, lead: false, vocal: 'none', ride: false, crash: false },
+  { name: 'chorusA', frac: 0.2, chords: 'B', intensity: 1.0, drumMode: 'full', bass: true, subBass: true, pad: true, lead: true, vocal: 'hook', ride: true, crash: true },
+  { name: 'verseB', frac: 0.16, chords: 'A', intensity: 0.5, drumMode: 'sparse', bass: true, subBass: false, pad: true, lead: false, vocal: 'verse', ride: false, crash: false },
+  { name: 'buildB', frac: 0.06, chords: 'A', intensity: 0.9, drumMode: 'roll', bass: false, subBass: false, pad: false, lead: false, vocal: 'none', ride: false, crash: false },
+  { name: 'chorusB', frac: 0.22, chords: 'B', intensity: 1.0, drumMode: 'full', bass: true, subBass: true, pad: true, lead: true, vocal: 'hook', ride: true, crash: true },
 ];
 
 function buildArrangement(totalBars: number, p: StylePreset): Section[] {
@@ -315,6 +450,7 @@ function buildArrangement(totalBars: number, p: StylePreset): Section[] {
       subBass: step.subBass,
       pad: step.pad,
       lead: step.lead,
+      vocal: step.vocal,
       ride: step.ride,
       crashOnEntry: step.crash,
     });
@@ -482,7 +618,30 @@ export class MusicPlayer {
       if (hit) {
         const semi = scale[hit.degree % scale.length];
         const f = midiToFreq(chordRoot + semi + 12 * p.leadOctave);
-        this.voices.lead(at, f, stepDur * (hit.len ?? 3), 0.15 + intensity * 0.08);
+        // 보컬이 같은 훅을 부르는 구간에서는 리드를 뒤로 물려 목소리를 앞세운다
+        const leadGain = section.vocal === 'hook' ? 0.07 : 0.15 + intensity * 0.08;
+        this.voices.lead(at, f, stepDur * (hit.len ?? 3), leadGain);
+      }
+    }
+
+    // --- 보컬 ---
+    // 코러스에서는 합창 훅이 멜로디를 노래하고, 벌스에서는 한 줄짜리 낮은
+    // 라인이 옅게 흐른다. 리드 신스와 같은 음계를 쓰되 옥타브를 낮춰
+    // 사람 음역(대략 C3~C5)에 두어야 목소리처럼 들린다.
+    if (section.vocal !== 'none') {
+      const scale = scaleTones(chordOffset);
+      const cycleStep = ((step % 32) + 32) % 32;
+      const isHook = section.vocal === 'hook';
+      const phrase = isHook
+        ? p.vocalPhrases[Math.floor(bar / 2) % p.vocalPhrases.length]
+        : p.vocalVersePhrase;
+      const hit = phrase.find((h) => h.step === cycleStep);
+      if (hit) {
+        const semi = scale[hit.degree % scale.length];
+        const f = midiToFreq(chordRoot + semi + 12 * p.vocalOctave);
+        const dur = stepDur * (hit.len ?? 3);
+        if (isHook) this.voices.vocalChoir(at, f, dur, hit.vowel, 0.045 + intensity * 0.02);
+        else this.voices.vocal(at, f, dur, hit.vowel, 0.026 + intensity * 0.012);
       }
     }
 

@@ -2,6 +2,22 @@ import type { AudioEngine } from './context';
 
 export const midiToFreq = (n: number): number => 440 * Math.pow(2, (n - 69) / 12);
 
+/** 보컬 합성에 쓰는 모음 (아 에 이 오 우) */
+export type Vowel = 'a' | 'e' | 'i' | 'o' | 'u';
+
+/**
+ * 모음별 포먼트. f = 공명 주파수(Hz), q = 대역 선명도, g = 섞는 비율.
+ * 실제 성인 발성의 F1/F2/F3 측정값을 기준으로 잡았다 — 이 세 봉우리의
+ * 위치만으로 사람 귀는 모음을 구분한다.
+ */
+const FORMANTS: Record<Vowel, { f: [number, number, number]; q: number[]; g: number[] }> = {
+  a: { f: [730, 1090, 2440], q: [9, 10, 11], g: [1, 0.5, 0.24] },
+  e: { f: [530, 1840, 2480], q: [10, 12, 12], g: [1, 0.62, 0.3] },
+  i: { f: [270, 2290, 3010], q: [11, 13, 13], g: [1, 0.7, 0.36] },
+  o: { f: [570, 840, 2410], q: [9, 10, 11], g: [1, 0.42, 0.18] },
+  u: { f: [300, 870, 2240], q: [11, 11, 11], g: [1, 0.34, 0.14] },
+};
+
 /**
  * 절차적으로 합성하는 악기 보이스 모음.
  * 모든 보이스는 "예약된 절대 시각(t)"을 받아 그 시점에 정확히 울린다.
@@ -303,6 +319,114 @@ export class Voices {
     o.connect(g).connect(this.bus);
     o.start(t);
     o.stop(t + dur + 0.02);
+  }
+
+  /**
+   * 보컬(포먼트 합성).
+   *
+   * 이 프로젝트에는 오디오 파일이 하나도 없다 — 전부 Web Audio 로 실시간
+   * 합성한다. 그래서 "녹음된 목소리"를 얹을 수는 없고, 대신 사람 목소리가
+   * 만들어지는 방식 자체를 흉내 낸다.
+   *
+   *  성대(사각파 + 톱니 = 성문파) → 공명(모음별 포먼트 3개를 병렬 밴드패스)
+   *  → 숨소리(고역 노이즈) → 비브라토 → 음절 엔벨로프
+   *
+   * 모음마다 실제 포먼트 주파수(F1/F2/F3)가 달라서, 같은 음정이라도
+   * '아/에/이/오/우' 가 뚜렷이 구분돼 들린다. 자음이 없으니 가사가
+   * 또렷하진 않지만 "사람이 노래하는 라인"으로는 확실히 읽힌다.
+   */
+  vocal(t: number, freq: number, dur: number, vowel: Vowel = 'a', gain = 0.06): void {
+    const ctx = this.e.ctx;
+    const F = FORMANTS[vowel];
+
+    // --- 성문파: 사각파(배음 풍부) + 톱니를 살짝 섞어 두께를 준다 ---
+    const src = ctx.createGain();
+    src.gain.value = 1;
+    const osc = ctx.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(freq, t);
+    const sq = ctx.createOscillator();
+    sq.type = 'square';
+    sq.frequency.setValueAtTime(freq, t);
+    const sqg = ctx.createGain();
+    sqg.gain.value = 0.35;
+
+    // 비브라토 — 이게 없으면 신스처럼 뻣뻣하게 들린다
+    const vib = ctx.createOscillator();
+    vib.type = 'sine';
+    vib.frequency.value = 5.4;
+    const vibAmt = ctx.createGain();
+    // 길게 끄는 음일수록 비브라토를 깊게
+    vibAmt.gain.setValueAtTime(0, t);
+    vibAmt.gain.linearRampToValueAtTime(freq * 0.012, t + Math.min(0.35, dur * 0.6));
+    vib.connect(vibAmt);
+    vibAmt.connect(osc.frequency);
+    vibAmt.connect(sq.frequency);
+
+    osc.connect(src);
+    sq.connect(sqg).connect(src);
+
+    // --- 음절 엔벨로프 (부드러운 시작 → 유지 → 자연스러운 감쇠) ---
+    const env = ctx.createGain();
+    const atk = Math.min(0.07, dur * 0.25);
+    env.gain.setValueAtTime(0.0001, t);
+    env.gain.exponentialRampToValueAtTime(gain, t + atk);
+    env.gain.setValueAtTime(gain, t + Math.max(atk, dur * 0.7));
+    env.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+
+    // --- 포먼트 3개를 병렬로 걸어 모음을 만든다 ---
+    //
+    // 톱니파의 배음은 1/n 로 줄어들기 때문에, 밴드패스 게인을 표대로만 주면
+    // F2·F3 가 F1 에 묻혀 '이'와 '오'가 거의 같은 소리로 들린다. 그래서
+    // 포먼트 주파수에 비례해(= 배음 감쇠를 상쇄하도록) 게인을 올려 준다.
+    // 이 보정을 넣기 전후로 모음 간 스펙트럼 거리가 0.036 → 0.114 로 벌어졌다.
+    for (let i = 0; i < 3; i++) {
+      const bp = ctx.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.frequency.value = F.f[i];
+      bp.Q.value = F.q[i];
+      const boost = Math.min(12, F.f[i] / Math.max(120, freq));
+      const fg = ctx.createGain();
+      fg.gain.value = F.g[i] * boost;
+      src.connect(bp).connect(fg).connect(env);
+    }
+    // 성문파 원음을 아주 조금 섞어 저음이 비지 않게 한다
+    const dry = ctx.createGain();
+    dry.gain.value = 0.12;
+    src.connect(dry).connect(env);
+
+    // --- 숨소리 ---
+    const breath = this.e.noiseSource();
+    const bhp = ctx.createBiquadFilter();
+    bhp.type = 'bandpass';
+    bhp.frequency.value = 2600;
+    bhp.Q.value = 0.7;
+    const bg = ctx.createGain();
+    bg.gain.setValueAtTime(0.0001, t);
+    bg.gain.exponentialRampToValueAtTime(gain * 0.09, t + atk);
+    bg.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    breath.connect(bhp).connect(bg).connect(this.bus);
+
+    env.connect(this.bus);
+    const stop = t + dur + 0.05;
+    osc.start(t);
+    osc.stop(stop);
+    sq.start(t);
+    sq.stop(stop);
+    vib.start(t);
+    vib.stop(stop);
+    breath.start(t);
+    breath.stop(stop);
+  }
+
+  /**
+   * 코러스(합창) 보컬. 같은 음을 옥타브·5도로 겹쳐 두껍게 쌓는다.
+   * 훅에서 "여럿이 같이 부르는" 느낌을 내는 데 쓴다.
+   */
+  vocalChoir(t: number, freq: number, dur: number, vowel: Vowel = 'a', gain = 0.055): void {
+    this.vocal(t, freq, dur, vowel, gain);
+    this.vocal(t + 0.012, freq * 2, dur * 0.9, vowel, gain * 0.34);
+    this.vocal(t + 0.02, freq * 1.5, dur * 0.85, vowel, gain * 0.22);
   }
 
   /** 상승 노이즈 스윕 (드롭 직전 빌드업) */

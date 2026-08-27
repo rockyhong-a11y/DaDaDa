@@ -614,6 +614,43 @@ kbd {
   text-shadow: 0 0 12px rgba(255, 120, 220, 0.8);
 }
 
+/* 활강 배너 — 피버와 같은 자리를 쓰되 차분한 하늘색 톤으로 구분한다 */
+.hud__glide {
+  position: absolute;
+  left: 50%;
+  top: 74%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  pointer-events: none;
+  z-index: 4;
+  animation: glide-in 0.5s ease both;
+}
+
+.hud__glide b {
+  display: block;
+  font-size: clamp(20px, 3.6vw, 32px);
+  font-weight: 900;
+  letter-spacing: 0.22em;
+  color: #cfe9ff;
+  text-shadow: 0 0 20px rgba(120, 200, 255, 0.85);
+}
+
+.hud__glide span {
+  display: block;
+  margin-top: 3px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: var(--muted);
+}
+
+@keyframes glide-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% + 12px));
+  }
+}
+
 @keyframes fever-throb {
   from {
     transform: translate(-50%, -50%) scale(0.96);
@@ -1489,11 +1526,15 @@ input[type='password'] {
   .hud__judge span {
     display: none;
   }
-  .hud__fever {
+  .hud__fever,
+  .hud__glide {
     top: 78%;
   }
   .hud__fever b {
     font-size: 24px;
+  }
+  .hud__glide b {
+    font-size: 19px;
   }
   .lm-tag {
     font-size: 11px;

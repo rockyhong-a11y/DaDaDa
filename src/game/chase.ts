@@ -46,9 +46,11 @@ export class ChaseCamera {
     bank: number,
     heat: number,
     falling: boolean,
+    /** 활강 구간 정도 (0~1). 카메라를 뒤·위로 빼서 도시 전경을 보여 준다. */
+    glide = 0,
   ): void {
-    const back = 13 + Math.min(speed * 0.16, 7) + heat * 2.5;
-    const up = 4.2 + Math.min(speed * 0.04, 2.4);
+    const back = 13 + Math.min(speed * 0.16, 7) + heat * 2.5 + glide * 16;
+    const up = 4.2 + Math.min(speed * 0.04, 2.4) + glide * 9;
     this.desired.copy(playerPos).addScaledVector(dir, -back);
     this.desired.y += up;
     if (falling) this.desired.y += 6;
@@ -71,9 +73,10 @@ export class ChaseCamera {
 
     this.camera.position.copy(this.pos);
 
-    // 진행 방향 조금 앞을 본다
-    this.lookAt.copy(playerPos).addScaledVector(dir, 9);
-    this.lookAt.y += 1.2;
+    // 진행 방향 조금 앞을 본다. 활강 중에는 더 멀리·더 아래를 본다 —
+    // 발밑으로 펼쳐진 도시가 화면에 들어와야 "내려다보며 난다"가 된다.
+    this.lookAt.copy(playerPos).addScaledVector(dir, 9 + glide * 26);
+    this.lookAt.y += 1.2 - glide * 16;
     this.camera.lookAt(this.lookAt);
 
     // 롤: 스윙 뱅킹의 일부를 카메라에 옮긴다
@@ -83,7 +86,7 @@ export class ChaseCamera {
     this.camera.rotateZ(this.roll);
 
     // FOV: 속도 + 히트 + 박자 펄스
-    const targetFov = 66 + Math.min(speed * 0.38, 20) + heat * 6 + this.pulse * 3.5;
+    const targetFov = 66 + Math.min(speed * 0.38, 20) + heat * 6 + this.pulse * 3.5 + glide * 10;
     this.fov += (targetFov - this.fov) * Math.min(1, dt * 4);
     if (Math.abs(this.camera.fov - this.fov) > 0.01) {
       this.camera.fov = this.fov;

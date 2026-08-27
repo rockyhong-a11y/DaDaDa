@@ -10,7 +10,14 @@ import { Ground, Parks, Water } from '../world/ground';
 import { SKY_PRESETS } from '../world/palette';
 import { Sky } from '../world/sky';
 import type { Renderer } from '../world/scene';
-import { buildChart, swingPoint, type Chart, type Note, type SwingSegment, type Vec3 } from './chart';
+import {
+  buildChart,
+  swingPointSmooth,
+  type Chart,
+  type Note,
+  type SwingSegment,
+  type Vec3,
+} from './chart';
 import { ChaseCamera } from './chase';
 import { accuracy, applyJudge, classify, makeWindows, newScore, rankOf, type Rank, type ScoreState } from './judge';
 import { NoteMarkers } from './markers';
@@ -56,6 +63,8 @@ export interface HudState {
   feverActive: boolean;
   /** 피버 남은 시간(초). 게이지 비우기 연출에 쓴다. */
   feverRemain: number;
+  /** 활강 구간을 지나는 중인가 (배너 연출용) */
+  gliding: boolean;
   heat: number;
   progress: number;
   altitude: number;
@@ -141,6 +150,7 @@ export class Game {
     power: 0,
     feverActive: false,
     feverRemain: 0,
+    gliding: false,
     heat: 0,
     progress: 0,
     altitude: 0,
@@ -214,6 +224,8 @@ export class Game {
   /** 피버 모드: 게이지가 100 을 찍으면 켜지고, 지속시간 동안 연타로 노트를 밀어낼 수 있다. */
   private feverActive = false;
   private feverEndsAt = 0;
+  /** 활강 연출 강도 (0~1). 구간 경계에서 튀지 않게 부드럽게 오간다. */
+  private glideT = 0;
   private lastBeatIndex = -1;
   private elapsed = 0;
 
@@ -292,7 +304,9 @@ export class Game {
     this.sky = new Sky(preset);
     this.masts = new AnchorMasts(
       this.chart.segments
-        .filter((s) => !s.finale && s.anchor.y > s.anchorRoof + 1.5)
+        // 활강 구간의 앵커는 실제 웹이 아니라 궤적을 펴 주는 가상 지지점이라
+        // 철탑을 세우면 안 된다 (500m 짜리 기둥이 솟아 버린다).
+        .filter((s) => !s.finale && !s.glide && s.anchor.y > s.anchorRoof + 1.5)
         .map((s) => ({ x: s.anchor.x, y: s.anchor.y, z: s.anchor.z, roof: s.anchorRoof })),
     );
 
@@ -367,6 +381,8 @@ export class Game {
     this.falling = false;
     this.feverActive = false;
     this.feverEndsAt = 0;
+    this.glideT = 0;
+    this.hud.gliding = false;
     this.hud.feverActive = false;
     this.hud.feverRemain = 0;
     this.hud.power = 0;
@@ -613,6 +629,7 @@ export class Game {
       this.currentBank(),
       this.heat,
       this.falling,
+      this.glideT,
     );
     this.sky?.follow(this.chase.camera.position.x, this.chase.camera.position.y, this.chase.camera.position.z);
     this.updateMarkers();
@@ -769,9 +786,14 @@ export class Game {
     return { seg, u };
   }
 
-  /** 진자는 최저점에서 가장 빠르다. 그 느낌만 살짝 섞는다. */
+  /**
+   * 진자는 최저점에서 가장 빠르다. 그 느낌만 살짝 섞되, 예전(0.28)보다 훨씬
+   * 옅게 넣는다 — 이징이 강하면 구간마다 끝에서 멈칫하다 다시 튀어나가
+   * "한 칸씩 끊어 가는" 느낌이 나기 때문이다. 이음매 블렌딩과 합쳐
+   * 좌우로 계속 흘러가는 모양을 만든다.
+   */
   private static easeSwing(u: number): number {
-    return u * 0.72 + ((1 - Math.cos(Math.PI * u)) / 2) * 0.28;
+    return u * 0.9 + ((1 - Math.cos(Math.PI * u)) / 2) * 0.1;
   }
 
   private updateMotion(dt: number, songTime: number): void {
@@ -792,7 +814,7 @@ export class Game {
       this.rope.hide();
     } else {
       const { seg, u } = this.currentSegment(songTime);
-      swingPoint(seg, Game.easeSwing(u), this.tmpVec);
+      swingPointSmooth(segs, this.segIndex, Game.easeSwing(u), this.tmpVec);
       this.pos.set(this.tmpVec.x, this.tmpVec.y, this.tmpVec.z);
 
       // 판정 결과에 따른 고도 처짐
@@ -812,8 +834,8 @@ export class Game {
       }
       if (this.sag < -46 && !this.falling && this.phase === 'playing') this.crash();
 
-      // 웹 로프
-      if (!this.falling) {
+      // 웹 로프 — 활강 구간에는 걸 웹이 없으므로 감춘다
+      if (!this.falling && !seg.glide) {
         this.anchorV.set(seg.anchor.x, seg.anchor.y, seg.anchor.z);
         this.player.handWorld(this.hand);
         const fade = u > 0.94 ? 1 - (u - 0.94) / 0.06 : 1;
@@ -833,6 +855,11 @@ export class Game {
 
     this.heat = Math.max(0, this.heat - dt * 0.16);
     this.trickT = Math.max(0, this.trickT - dt * 2.4);
+
+    // 활강 연출 강도. 구간 경계에서 카메라가 튀지 않게 시간 상수를 두고 좇는다.
+    const wantGlide = songTime >= 0 && segs[this.segIndex]?.glide ? 1 : 0;
+    this.glideT += (wantGlide - this.glideT) * Math.min(1, dt * 1.8);
+    this.hud.gliding = this.glideT > 0.5;
 
     const { seg } = songTime >= 0 ? this.currentSegment(songTime) : { seg: segs[0] };
     if (!this.falling && songTime >= 0) {
@@ -881,7 +908,7 @@ export class Game {
     while (j > 0 && t < segs[j].t0) j--;
     const seg = segs[j];
     const u = Math.max(0, Math.min(1, (t - seg.t0) / (seg.t1 - seg.t0 || 1)));
-    return swingPoint(seg, Game.easeSwing(u), out);
+    return swingPointSmooth(segs, j, Game.easeSwing(u), out);
   }
 
   private currentBank(): number {

@@ -44,6 +44,20 @@ export interface SwingSegment {
   anchorBuilding: number;
   side: 1 | -1;
   finale: boolean;
+  /**
+   * 활강 구간인가. 웹을 놓고 높이 솟아올라 도시 전체를 내려다보며 미끄러지는
+   * 구간으로, 스테이지마다 중간과 마지막에 하나씩 들어간다. 로프를 그리지
+   * 않고 카메라도 뒤로 빠진다.
+   */
+  glide: boolean;
+}
+
+/** 활강 구간의 범위 (스윙 인덱스 기준, end 는 미포함) */
+export interface GlideRange {
+  start: number;
+  end: number;
+  /** 이 구간에서 도달하는 최고 고도(m) */
+  apex: number;
 }
 
 export interface Chart {
@@ -59,6 +73,8 @@ export interface Chart {
   /** 통계: 스윙/에어 노트 수 */
   swingCount: number;
   airCount: number;
+  /** 활강 구간 두 곳 (중간 · 마무리) */
+  glides: GlideRange[];
 }
 
 const BASE_SPEED = 27; // m/s
@@ -105,8 +121,21 @@ export function buildChart(city: City): Chart {
   const routeSwings = Math.max(6, Math.round(L / (targetSpeed * swingBeats * beatDur)));
   const routeBeats = routeSwings * swingBeats;
   const speed = L / (routeBeats * beatDur);
-  const totalSwings = routeSwings + finaleSwings;
+
+  // --- 활강 구간 두 곳 ---
+  // 중간: 경로 한복판에서 솟아올랐다 내려온다. 마무리: 피날레 타워 정상에서
+  // 뛰어내려 도시 위를 길게 미끄러지며 끝난다.
+  const midGlideLen = Math.max(4, Math.min(8, Math.round(routeSwings * 0.1)));
+  const midGlideStart = Math.max(2, Math.round(routeSwings * 0.46));
+  const finalGlideLen = 6;
+  const totalSwings = routeSwings + finaleSwings + finalGlideLen;
   const totalBeatSpan = totalSwings * swingBeats;
+  const glides: GlideRange[] = [
+    { start: midGlideStart, end: midGlideStart + midGlideLen, apex: 0 },
+    { start: routeSwings + finaleSwings, end: totalSwings, apex: 0 },
+  ];
+  const inGlide = (j: number): GlideRange | null =>
+    glides.find((g) => j >= g.start && j < g.end) ?? null;
 
   const notes: Note[] = [];
   let nextSwingBeat = 0;
@@ -119,6 +148,10 @@ export function buildChart(city: City): Chart {
       swingIdx++;
       nextSwingBeat += swingBeats;
     }
+    // 활강 중에는 걸 웹이 없다. 진입하는 첫 스윙(도약)만 남기고 나머지
+    // 스윙 노트는 공중 트릭으로 바꾼다 — 미끄러지며 묘기를 넣는 구간이 된다.
+    const g = inGlide(swingIdx);
+    if (kind === 'swing' && g && swingIdx !== g.start) kind = 'air';
     notes.push({
       index: notes.length,
       kind,
@@ -146,7 +179,7 @@ export function buildChart(city: City): Chart {
   // 정면으로만 나아가 밋밋하다. 노드 자체를 중심선 좌우로 번갈아 밀어 두면
   // 매 스윙이 왼쪽 끝 → 오른쪽 끝을 가로지르며 실제로 좌우를 오가게 된다.
   const hopDist = speed * swingBeats * beatDur;
-  const sway = Math.min(58, hopDist * 0.38);
+  const sway = Math.min(82, hopDist * 0.52);
   const segments: SwingSegment[] = [];
   const nodePos: Vec3[] = [];
   const nodeS: number[] = [];
@@ -211,6 +244,32 @@ export function buildChart(city: City): Chart {
     p.y = flight[j];
   }
 
+  // --- 중간 활강: 창구간 위로 크게 부풀린 종 모양 고도 곡선 ---
+  // 양 끝은 원래 비행 고도에 맞춰 두고 가운데를 스카이라인 한참 위까지
+  // 밀어 올려, 솟았다가 도시를 내려다보며 미끄러져 내려오게 만든다.
+  {
+    const g = glides[0];
+    const lo = Math.min(g.start, routeSwings);
+    const hi = Math.min(g.end, routeSwings);
+    let ceiling = 0;
+    for (let j = lo; j <= hi; j++) {
+      const p = nodePos[j];
+      ceiling = Math.max(ceiling, city.skylineAt(p.x, p.z, 320));
+    }
+    g.apex = ceiling + 210;
+    const span = Math.max(1, hi - lo);
+    for (let j = lo; j <= hi; j++) {
+      const u = (j - lo) / span;
+      // sin 종 곡선: 양 끝 0, 가운데 1
+      const bell = Math.sin(Math.PI * u);
+      const lift = (g.apex - flight[j]) * bell;
+      if (lift > 0) {
+        flight[j] += lift;
+        nodePos[j].y = flight[j];
+      }
+    }
+  }
+
   for (let j = 0; j < routeSwings; j++) {
     const cand = anchorCand[j];
     segments.push({
@@ -224,12 +283,18 @@ export function buildChart(city: City): Chart {
       anchorBuilding: cand.b,
       side: anchorSideOf(j),
       finale: false,
+      glide: !!inGlide(j),
     });
   }
   // 앵커 높이 확정 -> 궤적이 건물을 뚫으면 고도를 올리고 다시 계산, 를 반복한다.
+  // 활강 구간은 실제 옥상에 거는 웹이 아니라 궤적을 완만하게 펴 주는 가상의
+  // 높은 지지점이라, 훨씬 위에 띄워 거의 직선에 가까운 활공 곡선을 만든다.
   const setAnchorHeights = (): void => {
     for (let j = 0; j < routeSwings; j++) {
-      segments[j].anchor.y = Math.max(anchorCand[j].roof + 6, Math.max(flight[j], flight[j + 1]) + 19);
+      const top = Math.max(flight[j], flight[j + 1]);
+      segments[j].anchor.y = segments[j].glide
+        ? top + 520
+        : Math.max(anchorCand[j].roof + 6, top + 19);
     }
   };
   setAnchorHeights();
@@ -267,12 +332,53 @@ export function buildChart(city: City): Chart {
       anchorBuilding: -1,
       side: k % 2 === 0 ? 1 : -1,
       finale: true,
+      glide: false,
     });
     prev = to;
   }
   // 피날레 나선 구간은 routeSwings 구간과 달리 관통 검사를 한 번도 안 거쳤다 —
   // 타워 자체나 그 주변 건물을 그대로 뚫고 지나가는 버그의 원인이었다.
   resolveFinaleClearance(city, segments, routeSwings, finaleSwings);
+
+  // --- 마무리 활강: 정상에서 몸을 던져 도시 위를 길게 미끄러진다 ---
+  // 타워 꼭대기에서 진행 방향으로 크게 호를 그리며 내려오는 구간. 스테이지의
+  // 마지막 인상이 "가장 높은 곳에서 서울 전체를 내려다보는 장면"이 된다.
+  {
+    const g = glides[1];
+    const summit = prev;
+    g.apex = summit.y + 120;
+    // 경로 마지막 진행 방향으로 뻗어 나간다 (타워를 등지고 바깥으로)
+    const away = Math.atan2(summit.z - tower.z, summit.x - tower.x);
+    const glideSpan = hopDist * 2.1;
+    let gPrev = summit;
+    for (let k = 0; k < finalGlideLen; k++) {
+      const j = routeSwings + finaleSwings + k;
+      const t = (k + 1) / finalGlideLen;
+      const dist = glideSpan * (k + 1);
+      const x = summit.x + Math.cos(away) * dist;
+      const z = summit.z + Math.sin(away) * dist;
+      // 처음엔 살짝 더 솟았다가(도약) 완만하게 활강해 내려온다
+      const rise = Math.sin(Math.PI * Math.min(1, t * 1.25)) * 90;
+      const fall = Math.pow(t, 1.6) * (summit.y - (city.skylineAt(x, z, 260) + 70));
+      const y = Math.max(city.skylineAt(x, z, 200) + 46, summit.y + rise - fall);
+      const to: Vec3 = { x, y, z };
+      segments.push({
+        index: j,
+        t0: j * swingBeats * beatDur,
+        t1: (j + 1) * swingBeats * beatDur,
+        from: gPrev,
+        to,
+        // 활강이라 실제 웹이 아니다 — 궤적을 완만하게 펴 주는 가상의 지지점
+        anchor: { x: (gPrev.x + x) / 2, y: Math.max(gPrev.y, y) + 560, z: (gPrev.z + z) / 2 },
+        anchorRoof: 0,
+        anchorBuilding: -1,
+        side: k % 2 === 0 ? 1 : -1,
+        finale: true,
+        glide: true,
+      });
+      gPrev = to;
+    }
+  }
 
   balanceTouchDensity(notes, stage);
 
@@ -291,6 +397,7 @@ export function buildChart(city: City): Chart {
     path,
     swingCount: notes.filter((n) => n.kind === 'swing').length,
     airCount: notes.filter((n) => n.kind === 'air').length,
+    glides,
   };
 }
 
@@ -386,7 +493,8 @@ function resolveClearance(
       }
     }
     for (let j = 0; j < routeSwings; j++) {
-      segments[j].anchor.y = Math.max(segments[j].anchorRoof + 6, Math.max(flight[j], flight[j + 1]) + 19);
+      const top = Math.max(flight[j], flight[j + 1]);
+      segments[j].anchor.y = segments[j].glide ? top + 520 : Math.max(segments[j].anchorRoof + 6, top + 19);
     }
   }
 }
@@ -536,5 +644,53 @@ export function swingPoint(seg: SwingSegment, t: number, out: Vec3): Vec3 {
   out.x = ax + (ux / ul) * r;
   out.y = ay + (uy / ul) * r;
   out.z = az + (uz / ul) * r;
+  return out;
+}
+
+/** 이음매를 뭉개는 구간 폭(각 구간 길이의 비율). */
+const JOINT_BLEND = 0.26;
+
+const blendTmp: Vec3 = { x: 0, y: 0, z: 0 };
+
+/**
+ * 이음매를 부드럽게 이은 스윙 위치.
+ *
+ * 구간마다 독립적으로 구면 보간하면 위치는 이어지지만 **속도 방향이 노드마다
+ * 꺾인다**(C0 만 연속). 스파이더맨처럼 좌우로 흘러가는 느낌이 나려면 이음매에서
+ * 방향까지 이어져야 해서, 노드 근처에서는 이웃 구간의 궤적을 t<0 / t>1 로
+ * 외삽해 겹쳐 섞는다. 두 궤적 모두 노드를 정확히 지나므로 위치는 그대로고
+ * 접선만 평균 나 코너가 사라진다.
+ *
+ * 이 블렌딩은 노드 도착 시각을 살짝 흐트러뜨리지만, 판정은 곡 시간축 위의
+ * 노트가 담당하고 이 함수는 "몸이 어디 있는가"만 그리므로 문제되지 않는다.
+ */
+export function swingPointSmooth(segs: SwingSegment[], index: number, t: number, out: Vec3): Vec3 {
+  const seg = segs[index];
+  swingPoint(seg, t, out);
+  const span = seg.t1 - seg.t0 || 1;
+
+  if (t < JOINT_BLEND && index > 0) {
+    const prev = segs[index - 1];
+    // 같은 절대 시각을 이전 구간의 파라미터로 환산 (1 을 넘어가는 외삽)
+    const pSpan = prev.t1 - prev.t0 || 1;
+    const pt = (seg.t0 + t * span - prev.t0) / pSpan;
+    swingPoint(prev, pt, blendTmp);
+    // 노드에서 0.5 → 블렌드 끝에서 0 으로 떨어지는 가중치
+    const k = t / JOINT_BLEND;
+    const w = 0.5 * (1 - k * k * (3 - 2 * k));
+    out.x += (blendTmp.x - out.x) * w;
+    out.y += (blendTmp.y - out.y) * w;
+    out.z += (blendTmp.z - out.z) * w;
+  } else if (t > 1 - JOINT_BLEND && index < segs.length - 1) {
+    const next = segs[index + 1];
+    const nSpan = next.t1 - next.t0 || 1;
+    const nt = (seg.t0 + t * span - next.t0) / nSpan; // 0 보다 작은 외삽
+    swingPoint(next, nt, blendTmp);
+    const k = (1 - t) / JOINT_BLEND;
+    const w = 0.5 * (1 - k * k * (3 - 2 * k));
+    out.x += (blendTmp.x - out.x) * w;
+    out.y += (blendTmp.y - out.y) * w;
+    out.z += (blendTmp.z - out.z) * w;
+  }
   return out;
 }
