@@ -48,6 +48,8 @@ export class ChaseCamera {
     falling: boolean,
     /** 활강 구간 정도 (0~1). 카메라를 뒤·위로 빼서 도시 전경을 보여 준다. */
     glide = 0,
+    /** 활강 중 시선을 얼마나 아래로 떨굴지(m). 지면까지의 높이에 비례해 넘어온다. */
+    glideDrop = 0,
   ): void {
     const back = 13 + Math.min(speed * 0.16, 7) + heat * 2.5 + glide * 16;
     const up = 4.2 + Math.min(speed * 0.04, 2.4) + glide * 9;
@@ -75,8 +77,10 @@ export class ChaseCamera {
 
     // 진행 방향 조금 앞을 본다. 활강 중에는 더 멀리·더 아래를 본다 —
     // 발밑으로 펼쳐진 도시가 화면에 들어와야 "내려다보며 난다"가 된다.
+    // 시선을 떨구는 양은 고정값이 아니라 지면까지의 높이에 비례해야 한다:
+    // 200~600m 상공에서 16m 만 내려다봐 봐야 화면에는 하늘만 남는다.
     this.lookAt.copy(playerPos).addScaledVector(dir, 9 + glide * 26);
-    this.lookAt.y += 1.2 - glide * 16;
+    this.lookAt.y += 1.2 - glide * glideDrop;
     this.camera.lookAt(this.lookAt);
 
     // 롤: 스윙 뱅킹의 일부를 카메라에 옮긴다

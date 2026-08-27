@@ -226,6 +226,7 @@ export class Game {
   private feverEndsAt = 0;
   /** 활강 연출 강도 (0~1). 구간 경계에서 튀지 않게 부드럽게 오간다. */
   private glideT = 0;
+  private glideDrop = 0;
   private lastBeatIndex = -1;
   private elapsed = 0;
 
@@ -630,6 +631,7 @@ export class Game {
       this.heat,
       this.falling,
       this.glideT,
+      this.glideDrop,
     );
     this.sky?.follow(this.chase.camera.position.x, this.chase.camera.position.y, this.chase.camera.position.z);
     this.updateMarkers();
@@ -860,6 +862,10 @@ export class Game {
     const wantGlide = songTime >= 0 && segs[this.segIndex]?.glide ? 1 : 0;
     this.glideT += (wantGlide - this.glideT) * Math.min(1, dt * 1.8);
     this.hud.gliding = this.glideT > 0.5;
+    // 지면까지의 높이에 비례해 시선을 떨군다 — 높이 뜰수록 더 내려다봐야
+    // 화면이 하늘로만 차지 않는다.
+    const aboveGround = Math.max(0, this.pos.y - this.city.groundAt(this.pos.x, this.pos.z));
+    this.glideDrop = Math.max(20, Math.min(320, aboveGround * 0.62));
 
     const { seg } = songTime >= 0 ? this.currentSegment(songTime) : { seg: segs[0] };
     if (!this.falling && songTime >= 0) {
