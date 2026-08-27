@@ -29,13 +29,33 @@ export interface LaneNote {
   side: 1 | -1;
 }
 
+/**
+ * 화면에 떠 있는 랜드마크 이름표 하나. 실제 건물 위에 투영되며, 멀수록
+ * 흐릿하고 작게 · 가까울수록 또렷하고 크게 그린다.
+ */
+export interface LandmarkTag {
+  name: string;
+  /** 화면 좌표 (0~1) */
+  sx: number;
+  sy: number;
+  /** 0(가장 멂) ~ 1(가장 가까움) */
+  near: number;
+  /** 실존 랜드마크(손으로 좌표를 적어 둔 건물)인가 */
+  major: boolean;
+}
+
 /** HUD 가 매 프레임 읽어가는 상태 스냅샷 */
 export interface HudState {
   phase: Phase;
   score: number;
   combo: number;
   acc: number;
-  hp: number;
+  /** SWING POWER 게이지(0~100). 0 에서 시작해 성공할수록 차오르고 100 이면 피버로 터진다. */
+  power: number;
+  /** 피버 모드 진행 중인가 */
+  feverActive: boolean;
+  /** 피버 남은 시간(초). 게이지 비우기 연출에 쓴다. */
+  feverRemain: number;
   heat: number;
   progress: number;
   altitude: number;
@@ -54,15 +74,13 @@ export interface HudState {
   landmark: string | null;
   /** 지금 지나는 구역 이름 (아파트 단지·상권 등). 없으면 null. */
   place: string | null;
-  /** 연출용 이름 배너. 'landmark' = 실존 건물, 'area' = 처음 들어온 구역 */
-  calloutKind: 'landmark' | 'area' | null;
+  /** 처음 들어온 구역을 알리는 배너 ('area' 전용 — 랜드마크는 landmarkTags 가 맡는다) */
+  calloutKind: 'area' | null;
   calloutTitle: string | null;
   calloutSubtitle: string;
   calloutAt: number;
-  /** 랜드마크 배너의 화면상 위치(0~1). 건물 위에 투영해 붙일 때 쓴다. area 배너는 안 쓴다. */
-  calloutScreenX: number;
-  calloutScreenY: number;
-  calloutWorldVisible: boolean;
+  /** 지금 화면에 보이는 랜드마크 이름표들 (거리순 페이드) */
+  landmarkTags: LandmarkTag[];
   /** 탭할 때마다 올라가는 카운터. 화면 좌표가 있으면(포인터) 그 자리에, 없으면(키보드) 판정선에 리플을 띄운다. */
   tapRippleId: number;
   tapRippleX: number | null;
@@ -81,6 +99,23 @@ export interface StageResult {
 }
 
 const LEAD_APPROACH = 220; // 리드인 동안 뒤에서 날아오는 거리(m)
+
+/** 피버 모드 지속 시간(초) */
+const FEVER_DURATION = 8;
+
+/** 한 프레임에 띄우는 랜드마크 이름표 최대 개수 (DOM 부담 상한) */
+const MAX_LANDMARK_TAGS = 14;
+
+/** 이름표를 띄워도 되는 화면 세로 범위(0~1). 이 밖은 고정 HUD 가 차지한다. */
+const TAG_SAFE_TOP = 0.2;
+const TAG_SAFE_BOTTOM = 0.88;
+
+/**
+ * 피버 중 한 번의 탭이 강제 성공시킬 수 있는 노트의 최대 선행 시간(초).
+ * 판정 창(good, 보통 0.2초 안팎)보다 훨씬 넉넉해서 박자를 정확히 맞출
+ * 필요 없이 연타만으로 앞의 노트를 계속 밀어낼 수 있다.
+ */
+const FEVER_REACH = 0.6;
 
 /**
  * 리티클에서 노트가 등장해 중앙까지 오므라드는 데 걸리는 시간(초)을 스테이지
@@ -103,7 +138,9 @@ export class Game {
     score: 0,
     combo: 0,
     acc: 1,
-    hp: 100,
+    power: 0,
+    feverActive: false,
+    feverRemain: 0,
     heat: 0,
     progress: 0,
     altitude: 0,
@@ -123,9 +160,7 @@ export class Game {
     calloutTitle: null,
     calloutSubtitle: '',
     calloutAt: -99,
-    calloutScreenX: 0.5,
-    calloutScreenY: 0.2,
-    calloutWorldVisible: false,
+    landmarkTags: [],
     tapRippleId: 0,
     tapRippleX: null,
     tapRippleY: null,
@@ -176,18 +211,19 @@ export class Game {
   private falling = false;
   private failAt = 0;
   private clearedAt = 0;
+  /** 피버 모드: 게이지가 100 을 찍으면 켜지고, 지속시간 동안 연타로 노트를 밀어낼 수 있다. */
+  private feverActive = false;
+  private feverEndsAt = 0;
   private lastBeatIndex = -1;
   private elapsed = 0;
 
   private landmarksList: BuildingInst[] = [];
-  private announcedLandmarks = new Set<BuildingInst>();
   private announcedZones = new Set<string>();
   private zoneName: string | null = null;
-  private calloutQueue: { kind: 'landmark' | 'area'; title: string; subtitle: string; pos: Vector3 | null }[] = [];
+  private calloutQueue: { kind: 'area'; title: string; subtitle: string }[] = [];
   private calloutBusyUntil = 0;
-  /** 지금 표시 중인 랜드마크 배너가 붙어야 할 3D 좌표 (건물 옥상 위) */
-  private activeCalloutPos: Vector3 | null = null;
   private readonly calloutNdc = new Vector3();
+  private readonly tagPos = new Vector3();
 
   private readonly pos = new Vector3();
   private readonly prevPos = new Vector3();
@@ -239,7 +275,8 @@ export class Game {
     this.unloadWorld();
     this.stage = stage;
     this.city = new City(stage);
-    this.landmarksList = this.city.buildings.filter((b) => b.kind === 'landmark');
+    // 실존 랜드마크 + 블록에서 이름을 물려받은 대표 동. 둘 다 이름표를 띄운다.
+    this.landmarksList = this.city.buildings.filter((b) => !!b.name);
     this.chart = buildChart(this.city);
     this.score = newScore(this.chart.notes.length);
     this.windows = makeWindows(stage.timingScale);
@@ -328,23 +365,26 @@ export class Game {
     this.heat = 0;
     this.trickT = 0;
     this.falling = false;
+    this.feverActive = false;
+    this.feverEndsAt = 0;
+    this.hud.feverActive = false;
+    this.hud.feverRemain = 0;
+    this.hud.power = 0;
     this.elapsed = 0;
     this.lastBeatIndex = -1;
     this.score = newScore(this.chart.notes.length);
     for (const n of this.chart.notes) noteState.delete(n);
 
     this.zoneName = null;
-    this.announcedLandmarks.clear();
     this.announcedZones.clear();
     this.calloutQueue.length = 0;
     this.calloutBusyUntil = 0;
-    this.activeCalloutPos = null;
     this.hud.place = null;
     this.hud.calloutKind = null;
     this.hud.calloutTitle = null;
     this.hud.calloutSubtitle = '';
     this.hud.calloutAt = -99;
-    this.hud.calloutWorldVisible = false;
+    this.hud.landmarkTags.length = 0;
 
     this.hud.tapRippleId = 0;
     this.hud.tapRippleX = null;
@@ -439,6 +479,20 @@ export class Game {
   /** 입력 시각과 가장 가까운 미판정 노트를 찾아 판정한다 */
   private judgePress(songTime: number): void {
     const notes = this.chart.notes;
+
+    // 피버 중에는 타이밍을 보지 않는다 — 훨씬 넓은 창 안의 가장 이른 노트를
+    // 무조건 PERFECT 로 밀어낸다. 즉 연타만으로 구간을 통과할 수 있다.
+    if (this.feverActive) {
+      for (let i = this.noteCursor; i < notes.length; i++) {
+        const n = notes[i];
+        if (noteState.has(n)) continue;
+        if (n.time - songTime > FEVER_REACH) break;
+        this.resolveNote(n, 'PERFECT', 0);
+        return;
+      }
+      return;
+    }
+
     let best = -1;
     let bestErr = Infinity;
     for (let i = this.noteCursor; i < notes.length; i++) {
@@ -458,10 +512,32 @@ export class Game {
     this.resolveNote(n, kind, songTime - n.time);
   }
 
+  /** 게이지가 가득 차면 피버 모드로 전환한다. */
+  private tryStartFever(): void {
+    if (this.feverActive || this.score.power < 100) return;
+    this.feverActive = true;
+    this.feverEndsAt = this.elapsed + FEVER_DURATION;
+    this.heat = 1;
+    this.chase.kick(0.9);
+    this.sfx.clear();
+  }
+
+  /** 피버 지속시간 동안 게이지를 균등하게 비우고, 끝나면 0 에서 다시 시작한다. */
+  private updateFever(): void {
+    if (!this.feverActive) return;
+    const remain = Math.max(0, this.feverEndsAt - this.elapsed);
+    this.score.power = (remain / FEVER_DURATION) * 100;
+    if (remain <= 0) {
+      this.feverActive = false;
+      this.score.power = 0;
+    }
+  }
+
   private resolveNote(n: Note, kind: Judgement, offset: number): void {
     noteState.set(n, kind);
     const isSwing = n.kind === 'swing';
-    applyJudge(this.score, kind, n.kind);
+    // 피버 중에는 게이지가 지속시간에 맞춰 빠지는 중이라 성공으로 되채우지 않는다
+    applyJudge(this.score, kind, n.kind, !this.feverActive);
     this.hud.lastJudge = kind;
     this.hud.lastJudgeAt = this.elapsed;
     this.hud.lastOffset = offset;
@@ -491,8 +567,11 @@ export class Game {
       );
       if (isSwing) this.sfx.shoot();
       else this.trickT = 1;
+      this.tryStartFever();
     }
-    if (this.score.hp <= 0 || this.score.missStreak >= this.maxMissStreak) this.crash();
+    // SWING POWER 는 이제 체력이 아니라 피버 자원이므로, 추락은 스윙 연속
+    // 미스로만 판정한다 (그 외엔 고도가 꺼져 지면에 닿는 경우).
+    if (this.score.missStreak >= this.maxMissStreak) this.crash();
   }
 
   private crash(): void {
@@ -516,6 +595,7 @@ export class Game {
     this.water?.update(this.elapsed);
 
     if (this.phase === 'playing') {
+      this.updateFever();
       if (this.autoplay) this.autoPlay(songTime);
       this.autoMiss(songTime);
       this.updateBeatPulse(songTime);
@@ -605,10 +685,11 @@ export class Game {
   }
 
   /**
-   * 위치 인지: 지금 지나는 구역(아파트 단지 등) 이름을 HUD 에 계속 띄우고,
-   * 처음 들어오는 구역·처음 가까워지는 랜드마크마다 이름 배너를 큐에 넣는다.
-   * 랜드마크는 큰 건물일수록 훨씬 멀리서부터 알아볼 수 있다는 점을 반영해
-   * 트리거 반경을 높이에 비례해 키운다 — 555m 롯데월드타워는 1km 밖에서도 뜬다.
+   * 위치 인지.
+   *  - 지금 지나는 구역 이름을 HUD 좌상단에 계속 띄우고, 처음 들어오는
+   *    구역이면 가운데 배너를 한 번 띄운다.
+   *  - 시야 안에 들어온 랜드마크는 전부 건물 옥상 위에 이름표로 투영한다.
+   *    멀면 흐릿·작게, 가까우면 또렷·크게 그려 원근이 느껴지게 한다.
    */
   private updateLocationAwareness(): void {
     const zone = this.city.zoneAt(this.pos.x, this.pos.z);
@@ -617,21 +698,8 @@ export class Game {
       this.hud.place = zone;
       if (zone && !this.announcedZones.has(zone)) {
         this.announcedZones.add(zone);
-        this.calloutQueue.push({ kind: 'area', title: zone, subtitle: '지나는 구역', pos: null });
+        this.calloutQueue.push({ kind: 'area', title: zone, subtitle: '지나는 구역' });
       }
-    }
-
-    for (const b of this.landmarksList) {
-      if (this.announcedLandmarks.has(b) || !b.name) continue;
-      const radius = Math.max(b.w, b.d) + b.height * 1.1 + 420;
-      const dx = b.x - this.pos.x;
-      const dz = b.z - this.pos.z;
-      if (dx * dx + dz * dz > radius * radius) continue;
-      this.announcedLandmarks.add(b);
-      const subtitle = b.height >= 1 ? `${Math.round(b.height)}m · ${b.floors}층` : '랜드마크';
-      // 옥상보다 살짝 위에 이름표를 띄워 "이 건물이다" 라는 게 분명하게 보이게 한다
-      const pos = new Vector3(b.x, b.base + b.height + 14, b.z);
-      this.calloutQueue.push({ kind: 'landmark', title: b.name, subtitle, pos });
     }
 
     if (this.elapsed >= this.calloutBusyUntil && this.calloutQueue.length > 0) {
@@ -640,27 +708,55 @@ export class Game {
       this.hud.calloutTitle = c.title;
       this.hud.calloutSubtitle = c.subtitle;
       this.hud.calloutAt = this.elapsed;
-      this.activeCalloutPos = c.pos;
-      this.calloutBusyUntil = this.elapsed + (c.kind === 'landmark' ? 4.0 : 2.4);
+      this.calloutBusyUntil = this.elapsed + 2.4;
     }
 
-    if (this.activeCalloutPos) {
-      if (this.elapsed >= this.calloutBusyUntil) {
-        this.activeCalloutPos = null;
-        this.hud.calloutWorldVisible = false;
-      } else {
-        this.calloutNdc.copy(this.activeCalloutPos).project(this.chase.camera);
-        this.hud.calloutScreenX = (this.calloutNdc.x + 1) / 2;
-        this.hud.calloutScreenY = (1 - this.calloutNdc.y) / 2;
-        this.hud.calloutWorldVisible =
-          this.calloutNdc.z < 1 &&
-          this.calloutNdc.x > -1.1 &&
-          this.calloutNdc.x < 1.1 &&
-          this.calloutNdc.y > -1.1 &&
-          this.calloutNdc.y < 1.1;
-      }
-    }
+    this.updateLandmarkTags();
+  }
 
+  /**
+   * 화면에 보이는 랜드마크 이름표를 매 프레임 다시 계산한다.
+   * 큰 건물일수록 더 멀리서부터 알아볼 수 있으므로 표시 반경을 높이에
+   * 비례해 키운다 — 555m 롯데월드타워는 1km 밖에서도 뜬다.
+   */
+  private updateLandmarkTags(): void {
+    const tags = this.hud.landmarkTags;
+    tags.length = 0;
+    for (const b of this.landmarksList) {
+      if (!b.name) continue;
+      const major = b.kind === 'landmark';
+      const reach = Math.max(b.w, b.d) + b.height * (major ? 1.5 : 0.9) + (major ? 700 : 430);
+      const dx = b.x - this.pos.x;
+      const dz = b.z - this.pos.z;
+      const d2 = dx * dx + dz * dz;
+      if (d2 > reach * reach) continue;
+
+      this.tagPos.set(b.x, b.base + b.height + 14, b.z);
+      this.calloutNdc.copy(this.tagPos).project(this.chase.camera);
+      // 카메라 뒤 / 화면 밖은 버린다
+      if (this.calloutNdc.z >= 1) continue;
+      if (this.calloutNdc.x < -1 || this.calloutNdc.x > 1) continue;
+      if (this.calloutNdc.y < -1 || this.calloutNdc.y > 1) continue;
+
+      const sy = (1 - this.calloutNdc.y) / 2;
+      // 위·아래 고정 HUD(점수·고도·진행바) 띠 안으로 들어오는 이름표는 버린다 —
+      // 어차피 글자끼리 겹쳐 둘 다 못 읽게 된다.
+      if (sy < TAG_SAFE_TOP || sy > TAG_SAFE_BOTTOM) continue;
+
+      // near: 0 = 표시 반경 끝(가장 멂), 1 = 코앞
+      const near = 1 - Math.min(1, Math.sqrt(d2) / reach);
+      tags.push({
+        name: b.name,
+        sx: (this.calloutNdc.x + 1) / 2,
+        sy,
+        near,
+        major,
+      });
+    }
+    // 먼 것부터 정렬해 뒤쪽을 먼저 그리게 한다 — 배열 뒤(=DOM 뒤)로 갈수록
+    // 가까운 이름표라, 겹쳐도 가까운 쪽이 위에 온다. 개수를 넘치면 먼 것부터 버린다.
+    tags.sort((a, b) => a.near - b.near);
+    if (tags.length > MAX_LANDMARK_TAGS) tags.splice(0, tags.length - MAX_LANDMARK_TAGS);
   }
 
   private currentSegment(songTime: number): { seg: SwingSegment; u: number } {
@@ -807,7 +903,9 @@ export class Game {
     h.score = this.score.score;
     h.combo = this.score.combo;
     h.acc = accuracy(this.score);
-    h.hp = this.score.hp;
+    h.power = this.score.power;
+    h.feverActive = this.feverActive;
+    h.feverRemain = this.feverActive ? Math.max(0, this.feverEndsAt - this.elapsed) : 0;
     h.heat = this.heat;
     h.altitude = this.pos.y;
     h.progress = Math.max(0, Math.min(1, songTime / Math.max(1, this.chart.duration)));

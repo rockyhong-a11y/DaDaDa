@@ -531,9 +531,14 @@ kbd {
   color: var(--muted);
 }
 
+/*
+ * 상단 행(점수·콤보) 아래에 놓는다. 점수 글자가 clamp(…, 4vw, …) 로 커지는
+ * 탓에 넓은 화면일수록 상단 행이 두꺼워져, 예전 74px 로는 1280px 이상에서
+ * 콤보·고도 글자가 서로 겹쳤다.
+ */
 .hud__hp {
   position: absolute;
-  top: 74px;
+  top: 100px;
   left: 22px;
   width: min(240px, 34vw);
 }
@@ -553,8 +558,15 @@ kbd {
   transition: width 0.16s ease, background 0.3s ease;
 }
 
-.hud__hp.low .bar i {
-  background: linear-gradient(90deg, var(--red), var(--amber));
+/* 피버 진행 중: 게이지가 남은 시간만큼 빠지며 무지개빛으로 요동친다 */
+.hud__hp.fever .bar i {
+  background: linear-gradient(90deg, var(--magenta), var(--amber), var(--cyan));
+  box-shadow: 0 0 16px rgba(255, 79, 196, 0.9);
+  transition: width 0.1s linear;
+}
+
+.hud__hp.fever label {
+  color: var(--magenta);
 }
 
 .hud__hp label {
@@ -565,9 +577,55 @@ kbd {
   color: var(--muted);
 }
 
+/*
+ * 피버 배너. 리티클(화면 정중앙)과 판정 텍스트(상단)를 모두 피해 화면
+ * 아래쪽 1/4 지점에 띄운다 — 노트를 가리지 않으면서도 시야에 확실히 들어온다.
+ */
+.hud__fever {
+  position: absolute;
+  left: 50%;
+  top: 74%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  pointer-events: none;
+  z-index: 4;
+  animation: fever-throb 0.5s ease-in-out infinite alternate;
+}
+
+.hud__fever b {
+  display: block;
+  font-size: clamp(24px, 4.6vw, 40px);
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  background: linear-gradient(90deg, var(--magenta), #ffd166, var(--cyan));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 16px rgba(255, 120, 220, 0.75));
+}
+
+.hud__fever span {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: var(--text);
+  text-shadow: 0 0 12px rgba(255, 120, 220, 0.8);
+}
+
+@keyframes fever-throb {
+  from {
+    transform: translate(-50%, -50%) scale(0.96);
+  }
+  to {
+    transform: translate(-50%, -50%) scale(1.06);
+  }
+}
+
 .hud__alt {
   position: absolute;
-  top: 74px;
+  top: 100px;
   right: 22px;
   text-align: right;
   font-family: var(--mono);
@@ -611,23 +669,29 @@ kbd {
 }
 
 /*
- * 태고의 달인처럼 판정 텍스트가 실제 입력이 일어나는 지점에서 뜬다 —
- * 이제 그 지점은 화면 정중앙(리티클)이라, 위치 계산 없이 그냥 화면
- * 중앙에 고정해 두면 된다.
+ * 판정 텍스트.
+ *
+ * 예전엔 입력 지점(화면 정중앙 리티클) 위에 그대로 겹쳐 띄웠는데, 접근 링이
+ * 중앙에서 최대 지름 220px 까지 커지는 탓에 정작 판정해야 할 노트를 글자가
+ * 가려 버렸다. 그래서 상단 HUD 행과 리티클 사이의 빈 띠로 올려 둔다.
+ * 리티클이 차지하는 세로 범위(중앙 ± 링 최대 반지름)를 침범하지 않는 선이
+ * 기준이라, 화면이 낮아질수록(모바일 가로) 더 위로 붙이고 글자도 줄인다.
  */
 .hud__judge {
   position: absolute;
   left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
+  top: 108px;
+  transform: translate(-50%, 0);
   text-align: center;
   opacity: 0;
   z-index: 5;
+  pointer-events: none;
+  white-space: nowrap;
 }
 
 .hud__judge b {
   display: block;
-  font-size: clamp(26px, 5.4vw, 46px);
+  font-size: clamp(24px, 4.6vw, 40px);
   font-weight: 900;
   letter-spacing: 0.02em;
   line-height: 1;
@@ -635,7 +699,7 @@ kbd {
 
 .hud__judge span {
   display: block;
-  margin-top: 6px;
+  margin-top: 4px;
   font-family: var(--mono);
   font-size: 12px;
   color: var(--muted);
@@ -645,46 +709,51 @@ kbd {
   animation: judge-pop 0.5s cubic-bezier(0.18, 1.2, 0.4, 1) both;
 }
 
+/* 위쪽 HUD 를 침범하지 않도록 아래로 살짝 흘러내리며 사라진다 */
 @keyframes judge-pop {
   0% {
     opacity: 0;
-    transform: translate(-50%, -50%) scale(0.6);
+    transform: translate(-50%, -8px) scale(0.6);
   }
   20% {
     opacity: 1;
-    transform: translate(-50%, -50%) scale(1.22);
+    transform: translate(-50%, 0) scale(1.22);
   }
   38% {
-    transform: translate(-50%, -50%) scale(0.94);
+    transform: translate(-50%, 0) scale(0.94);
   }
   50% {
-    transform: translate(-50%, -50%) scale(1.04);
+    transform: translate(-50%, 0) scale(1.04);
   }
   72% {
     opacity: 1;
-    transform: translate(-50%, calc(-50% - 10px)) scale(1);
+    transform: translate(-50%, 6px) scale(1);
   }
   100% {
     opacity: 0;
-    transform: translate(-50%, calc(-50% - 38px)) scale(0.96);
+    transform: translate(-50%, 22px) scale(0.96);
   }
 }
 
-/* 주요 랜드마크 근접 배너 */
-
+/*
+ * 처음 들어오는 구역 배너.
+ * 건물 하나가 아니라 지역 전체를 가리키는 것이라 월드 좌표에 붙이지 않고
+ * 화면 아래쪽에 고정한다 — 상단은 판정 텍스트, 가운데는 리티클 차지라
+ * 남는 자리가 여기뿐이기도 하다.
+ */
 .hud__callout {
   position: absolute;
   left: 50%;
-  top: 112px;
-  transform: translate(-50%, -8px);
+  bottom: calc(84px + env(safe-area-inset-bottom));
+  transform: translate(-50%, 8px);
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 3px;
-  padding: 8px 20px;
+  padding: 7px 18px;
   border-radius: 12px;
-  border: 1px solid rgba(255, 180, 87, 0.35);
-  background: linear-gradient(180deg, rgba(20, 16, 8, 0.78), rgba(10, 8, 4, 0.6));
+  border: 1px solid rgba(56, 246, 255, 0.3);
+  background: linear-gradient(180deg, rgba(8, 16, 20, 0.78), rgba(4, 9, 10, 0.6));
   text-align: center;
   opacity: 0;
   pointer-events: none;
@@ -695,15 +764,15 @@ kbd {
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.26em;
-  color: var(--amber);
+  color: var(--cyan);
 }
 
 .hud__callout b {
-  font-size: clamp(16px, 2.6vw, 21px);
+  font-size: clamp(14px, 2.2vw, 18px);
   font-weight: 800;
   letter-spacing: -0.01em;
   color: var(--text);
-  text-shadow: 0 0 18px rgba(255, 180, 87, 0.45);
+  text-shadow: 0 0 16px rgba(56, 246, 255, 0.4);
 }
 
 .hud__callout em {
@@ -718,25 +787,6 @@ kbd {
   display: none;
 }
 
-/* 'area' = 처음 지나는 구역. 랜드마크보다 차분한 톤으로 구분한다. */
-.hud__callout[data-kind='area'] {
-  border-color: rgba(56, 246, 255, 0.3);
-  background: linear-gradient(180deg, rgba(8, 16, 20, 0.78), rgba(4, 9, 10, 0.6));
-}
-
-.hud__callout[data-kind='area'] .tag {
-  color: var(--cyan);
-}
-
-.hud__callout[data-kind='area'] b {
-  font-size: clamp(14px, 2.2vw, 18px);
-  text-shadow: 0 0 16px rgba(56, 246, 255, 0.4);
-}
-
-.hud__callout.show {
-  animation: callout-pop 4s cubic-bezier(0.2, 1, 0.35, 1) both;
-}
-
 .hud__callout.show-area {
   animation: callout-pop 2.4s cubic-bezier(0.2, 1, 0.35, 1) both;
 }
@@ -744,7 +794,7 @@ kbd {
 @keyframes callout-pop {
   0% {
     opacity: 0;
-    transform: translate(-50%, -8px);
+    transform: translate(-50%, 8px);
   }
   10% {
     opacity: 1;
@@ -756,53 +806,44 @@ kbd {
   }
   100% {
     opacity: 0;
-    transform: translate(-50%, -6px);
+    transform: translate(-50%, 6px);
   }
 }
 
 /*
- * 랜드마크 배너는 화면 중앙 고정이 아니라 실제 건물이 투영되는 화면 좌표
- * (JS 가 매 프레임 left/top 을 갱신) 위에 떠 있어야 한다. 위치는 JS 가 갖고
- * 있으므로 여기서는 transform 을 "그 지점 바로 위에 앵커" 로만 고정하고,
- * 등장/퇴장은 위치 튐 없이 opacity 로만 처리한다. 건물이 화면 밖으로 나가면
- * JS 가 visibility 를 hidden 으로 바꾼다(애니메이션이 건드리지 않는 속성이라
- * 충돌하지 않는다).
+ * 랜드마크 이름표.
+ * 실제 건물 옥상 위 화면 좌표에 매 프레임 붙는다(위치·크기·투명도·블러는
+ * 전부 JS 가 거리에서 계산해 인라인으로 넣는다). 스카이라인 저 끝의 이름은
+ * 흐릿하게 겨우 보이다가, 다가올수록 커지고 또렷해진다.
  */
-.hud__callout.world {
-  top: var(--wy, 20%);
-  transform: translate(-50%, calc(-100% - 14px));
-}
-
-.hud__callout.world::after {
-  content: '';
+.lm-tag {
   position: absolute;
-  left: 50%;
-  bottom: -6px;
-  width: 10px;
-  height: 10px;
-  transform: translate(-50%, -50%) rotate(45deg);
-  background: inherit;
-  border-right: inherit;
-  border-bottom: inherit;
+  left: 0;
+  top: 0;
+  transform-origin: 50% 100%;
+  padding: 3px 9px;
+  border-radius: 7px;
+  border: 1px solid rgba(160, 200, 255, 0.22);
+  background: rgba(6, 10, 22, 0.5);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #dbe6ff;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 1;
+  will-change: transform, opacity;
 }
 
-.hud__callout.world.show {
-  animation: callout-pop-world 4s cubic-bezier(0.2, 1, 0.35, 1) both;
-}
-
-@keyframes callout-pop-world {
-  0% {
-    opacity: 0;
-  }
-  10% {
-    opacity: 1;
-  }
-  82% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
-  }
+/* 손으로 좌표를 적어 둔 실존 랜드마크는 금색으로 한 급 위에 둔다 */
+.lm-tag.major {
+  border-color: rgba(255, 180, 87, 0.5);
+  background: rgba(24, 17, 6, 0.6);
+  color: #ffe6b8;
+  font-size: 13.5px;
+  font-weight: 800;
+  text-shadow: 0 0 12px rgba(255, 180, 87, 0.55);
+  z-index: 2;
 }
 
 /*
@@ -1366,12 +1407,12 @@ input[type='password'] {
     display: none;
   }
   .hud__hp {
-    top: 56px;
+    top: 74px;
     left: 14px;
     width: 44vw;
   }
   .hud__alt {
-    top: 54px;
+    top: 72px;
     right: 14px;
   }
   .hud__alt-row b {
@@ -1379,6 +1420,20 @@ input[type='password'] {
   }
   .hud__combo {
     min-width: 0;
+  }
+  /* 상단 HUD 가 위로 좁혀진 만큼 판정 텍스트도 함께 끌어올린다 */
+  .hud__judge {
+    top: 138px;
+  }
+  .hud__judge b {
+    font-size: 30px;
+  }
+  .lm-tag {
+    font-size: 11px;
+    padding: 2px 7px;
+  }
+  .lm-tag.major {
+    font-size: 12.5px;
   }
   .hud__heat {
     display: none;
@@ -1411,31 +1466,52 @@ input[type='password'] {
     font-size: 22px;
   }
   .hud__hp {
-    top: 50px;
+    top: 78px;
   }
   .hud__alt {
-    top: 48px;
+    top: 76px;
   }
+  /*
+   * 세로가 짧으면 리티클 아래 남는 띠가 40px 남짓이라 구역 배너와 피버
+   * 배너가 서로 겹친다. 구역 이름은 좌상단 `▸ …` 태그에 상시 떠 있으므로
+   * 여기서는 배너 쪽을 접고 피버에 자리를 내준다.
+   */
   .hud__callout {
-    top: 80px;
-    padding: 5px 14px;
+    display: none;
   }
-  .hud__callout .tag {
-    font-size: 9px;
+  /* 세로가 짧으므로 판정 텍스트를 상단에 바짝 붙이고 오차(ms) 줄은 감춘다 */
+  .hud__judge {
+    top: 78px;
   }
-  .hud__callout b {
-    font-size: 15px;
+  .hud__judge b {
+    font-size: 22px;
+  }
+  .hud__judge span {
+    display: none;
+  }
+  .hud__fever {
+    top: 78%;
+  }
+  .hud__fever b {
+    font-size: 24px;
+  }
+  .lm-tag {
+    font-size: 11px;
+    padding: 2px 7px;
+  }
+  .lm-tag.major {
+    font-size: 12px;
   }
   .reticle__target,
   .reticle__note {
-    width: 38px;
-    height: 38px;
-    margin: -19px 0 0 -19px;
+    width: 32px;
+    height: 32px;
+    margin: -16px 0 0 -16px;
   }
   .reticle__note.air {
-    width: 26px;
-    height: 26px;
-    margin: -13px 0 0 -13px;
+    width: 22px;
+    height: 22px;
+    margin: -11px 0 0 -11px;
   }
   .hud__progress {
     bottom: calc(14px + env(safe-area-inset-bottom));

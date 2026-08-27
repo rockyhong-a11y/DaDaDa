@@ -30,6 +30,7 @@ export class Hud {
   private readonly comboEl: HTMLElement;
   private readonly hpWrap: HTMLElement;
   private readonly hpBar: HTMLElement;
+  private readonly feverWrap: HTMLElement;
   private readonly altEl: HTMLElement;
   private readonly spdEl: HTMLElement;
   private readonly judgeWrap: HTMLElement;
@@ -48,6 +49,7 @@ export class Hud {
   private readonly countEl: HTMLElement;
   private readonly heatBar: HTMLElement;
   private readonly notePool: HTMLElement[] = [];
+  private readonly tagPool: HTMLElement[] = [];
 
   private lastCombo = 0;
   private lastJudgeAt = -99;
@@ -65,7 +67,8 @@ export class Hud {
         <div class="hud__score"><b>0</b><span>ACC 100.00%</span></div>
         <div class="hud__combo"><b>0</b><span>COMBO</span></div>
       </div>
-      <div class="hud__hp"><label>SWING POWER</label><div class="bar"><i style="width:100%"></i></div></div>
+      <div class="hud__hp"><label>SWING POWER</label><div class="bar"><i style="width:0%"></i></div></div>
+      <div class="hud__fever" style="display:none"><b>FEVER!</b><span>연타로 밀어붙여라</span></div>
       <div class="hud__alt">
         <div class="hud__alt-row"><b>0</b><em>m</em></div>
         <span>ALTITUDE</span>
@@ -88,6 +91,7 @@ export class Hud {
     this.comboEl = q('.hud__combo b');
     this.hpWrap = q('.hud__hp');
     this.hpBar = q('.hud__hp .bar i');
+    this.feverWrap = q('.hud__fever');
     this.altEl = q('.hud__alt-row b');
     this.spdEl = q('.hud__alt-row.spd b');
     this.judgeWrap = q('.hud__judge');
@@ -129,6 +133,42 @@ export class Hud {
     setTimeout(cleanup, 700);
   }
 
+  /**
+   * 랜드마크 이름표를 실제 건물 위 화면 좌표에 그린다.
+   * 멀수록 작고 흐릿하게(살짝 블러까지), 가까울수록 크고 또렷하게 —
+   * 스카이라인 저 끝의 건물 이름이 다가올수록 선명해지는 원근을 만든다.
+   */
+  private renderLandmarkTags(tags: HudState['landmarkTags']): void {
+    for (let i = 0; i < Math.max(this.tagPool.length, tags.length); i++) {
+      const t = tags[i];
+      const el = this.tagPool[i];
+      if (!t) {
+        if (el) el.style.display = 'none';
+        continue;
+      }
+      let node = el;
+      if (!node) {
+        node = document.createElement('div');
+        node.className = 'lm-tag';
+        this.el.appendChild(node);
+        this.tagPool[i] = node;
+      }
+      if (node.textContent !== t.name) node.textContent = t.name;
+      // near 를 그대로 쓰면 먼 것이 너무 빨리 사라진다. 완만한 곡선으로 편다.
+      const k = Math.pow(t.near, 0.7);
+      const scale = 0.62 + k * 0.5;
+      const opacity = (t.major ? 0.3 : 0.16) + k * (t.major ? 0.7 : 0.74);
+      const blur = (1 - k) * 1.8;
+      node.style.display = '';
+      node.classList.toggle('major', t.major);
+      node.style.left = `${(t.sx * 100).toFixed(2)}%`;
+      node.style.top = `${(t.sy * 100).toFixed(2)}%`;
+      node.style.opacity = opacity.toFixed(3);
+      node.style.transform = `translate(-50%, -100%) scale(${scale.toFixed(3)})`;
+      node.style.filter = blur > 0.05 ? `blur(${blur.toFixed(2)}px)` : '';
+    }
+  }
+
   private noteEl(i: number): HTMLElement {
     let el = this.notePool[i];
     if (!el) {
@@ -155,8 +195,11 @@ export class Hud {
       this.lastCombo = s.combo;
     }
 
-    this.hpBar.style.width = `${s.hp}%`;
-    this.hpWrap.classList.toggle('low', s.hp < 35);
+    // SWING POWER: 0 에서 차올라 100 이면 피버. 피버 중에는 남은 시간만큼 다시 비워진다.
+    this.hpBar.style.width = `${s.power}%`;
+    this.hpWrap.classList.toggle('fever', s.feverActive);
+    this.feverWrap.style.display = s.feverActive ? '' : 'none';
+
     this.altEl.textContent = String(Math.round(s.altitude));
     this.spdEl.textContent = String(Math.min(9999, Math.round(s.speed * 3.6)));
     this.heatBar.style.width = `${Math.round(s.heat * 100)}%`;
@@ -187,29 +230,19 @@ export class Hud {
       if (s.place) this.placeEl.textContent = `▸ ${s.place}`;
     }
 
+    // 구역(area) 배너 — 처음 들어온 지역 이름을 한 번씩만 알려 준다
     if (s.calloutTitle && s.calloutAt !== this.lastCalloutAt) {
       this.lastCalloutAt = s.calloutAt;
-      this.calloutWrap.dataset.kind = s.calloutKind ?? 'landmark';
-      this.calloutTag.textContent = s.calloutKind === 'area' ? '지나는 구역' : '랜드마크';
+      this.calloutWrap.dataset.kind = s.calloutKind ?? 'area';
+      this.calloutTag.textContent = '지나는 구역';
       this.calloutEl.textContent = s.calloutTitle;
       this.calloutSub.textContent = s.calloutSubtitle;
-      this.calloutWrap.classList.remove('show', 'show-area');
+      this.calloutWrap.classList.remove('show-area');
       void this.calloutWrap.offsetWidth;
-      this.calloutWrap.classList.add(s.calloutKind === 'area' ? 'show-area' : 'show');
+      this.calloutWrap.classList.add('show-area');
     }
 
-    // 랜드마크 배너는 화면 중앙이 아니라 실제 건물 위 화면 좌표를 매 프레임 따라간다.
-    // 구역(area) 배너는 건물이 아니라 지역 전체를 가리키는 것이라 고정 위치를 유지한다.
-    if (s.calloutKind === 'landmark') {
-      this.calloutWrap.classList.add('world');
-      this.calloutWrap.style.left = `${(s.calloutScreenX * 100).toFixed(2)}%`;
-      this.calloutWrap.style.visibility = s.calloutWorldVisible ? '' : 'hidden';
-      this.calloutWrap.style.setProperty('--wy', `${(s.calloutScreenY * 100).toFixed(2)}%`);
-    } else {
-      this.calloutWrap.classList.remove('world');
-      this.calloutWrap.style.left = '';
-      this.calloutWrap.style.visibility = '';
-    }
+    this.renderLandmarkTags(s.landmarkTags);
 
     if (s.tapRippleId !== this.lastTapRippleId) {
       this.lastTapRippleId = s.tapRippleId;

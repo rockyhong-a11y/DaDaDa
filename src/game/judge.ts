@@ -27,18 +27,25 @@ export function classify(absError: number, w: Windows): Judgement {
 
 const VALUE: Record<Judgement, number> = { PERFECT: 300, GREAT: 200, GOOD: 100, MISS: 0 };
 const ACC: Record<Judgement, number> = { PERFECT: 1, GREAT: 0.7, GOOD: 0.35, MISS: 0 };
-const HP: Record<Judgement, number> = { PERFECT: 1.4, GREAT: 0.8, GOOD: 0.1, MISS: -9 };
+
+/**
+ * SWING POWER 게이지 증감량(%). 0 에서 시작해 노트를 성공시킬수록 차오르고,
+ * 100 을 찍으면 피버 모드로 들어간다. 미스는 깎지만 0 밑으로는 안 내려간다 —
+ * 이 게이지는 이제 체력(죽는 조건)이 아니라 "쌓아서 터뜨리는" 보상 자원이다.
+ */
+const POWER: Record<Judgement, number> = { PERFECT: 7, GREAT: 4.5, GOOD: 2, MISS: -6 };
 
 export interface ScoreState {
   score: number;
   combo: number;
   maxCombo: number;
   counts: Record<Judgement, number>;
-  hp: number;
+  /** SWING POWER 게이지(0~100). 100 이면 피버 발동 가능. */
+  power: number;
   judged: number;
   totalNotes: number;
   accSum: number;
-  /** 연속 스윙 미스 (3회면 추락) */
+  /** 연속 스윙 미스 (일정 횟수면 추락) */
   missStreak: number;
   fullCombo: boolean;
 }
@@ -49,7 +56,7 @@ export function newScore(totalNotes: number): ScoreState {
     combo: 0,
     maxCombo: 0,
     counts: { PERFECT: 0, GREAT: 0, GOOD: 0, MISS: 0 },
-    hp: 100,
+    power: 0,
     judged: 0,
     totalNotes,
     accSum: 0,
@@ -58,8 +65,17 @@ export function newScore(totalNotes: number): ScoreState {
   };
 }
 
-/** 판정 하나를 반영한다. 반환값은 이번 판정으로 얻은 점수. */
-export function applyJudge(s: ScoreState, kind: Judgement, noteKind: NoteKind): number {
+/**
+ * 판정 하나를 반영한다. 반환값은 이번 판정으로 얻은 점수.
+ * `chargePower` 가 false 면 게이지를 건드리지 않는다 — 피버 중에는 이미
+ * 게이지가 지속시간만큼 빠지고 있으므로 성공으로 다시 채우면 안 된다.
+ */
+export function applyJudge(
+  s: ScoreState,
+  kind: Judgement,
+  noteKind: NoteKind,
+  chargePower = true,
+): number {
   const isSwing = noteKind === 'swing';
 
   s.counts[kind]++;
@@ -69,15 +85,16 @@ export function applyJudge(s: ScoreState, kind: Judgement, noteKind: NoteKind): 
   if (kind === 'MISS') {
     s.combo = 0;
     s.fullCombo = false;
-    s.hp += isSwing ? HP.MISS : HP.MISS * 0.4;
     if (isSwing) s.missStreak++;
   } else {
     s.combo++;
     s.maxCombo = Math.max(s.maxCombo, s.combo);
-    s.hp += HP[kind] * (isSwing ? 1 : 0.6);
     s.missStreak = 0;
   }
-  s.hp = Math.max(0, Math.min(100, s.hp));
+  if (chargePower) {
+    s.power += POWER[kind] * (isSwing ? 1 : 0.6);
+    s.power = Math.max(0, Math.min(100, s.power));
+  }
 
   const mult = 1 + Math.min(s.combo, 120) / 120;
   const gained = Math.round(VALUE[kind] * mult * (isSwing ? 1 : 0.6));

@@ -90,6 +90,44 @@ export class City {
     this.fillBackground();
     this.buildIndex();
     this.buildZones();
+    this.nameBlockTowers();
+  }
+
+  /**
+   * 이름 붙은 블록마다 가장 높은 건물 몇 채에 이름을 달아 준다.
+   *
+   * 손으로 좌표를 적어 둔 실존 랜드마크는 스테이지당 9~18채뿐이라 이름표가
+   * 너무 드문드문 뜬다. 실재하는 단지·상권 이름(블록 이름)을 그 안에서 제일
+   * 눈에 띄는 동에 붙여 주면 표시 밀도를 5배 가까이 끌어올릴 수 있다.
+   *
+   * `kind` 는 건드리지 않는다 — 'landmark' 로 바꾸면 도시 셰이더의 색·형상
+   * 분류까지 같이 바뀌어 평범한 아파트가 특수 건물처럼 보이기 때문이다.
+   * 여기서 다는 건 어디까지나 "이름표"뿐이다.
+   */
+  private nameBlockTowers(): void {
+    const PER_ZONE = 4;
+    for (const zn of this.zones) {
+      const c = Math.cos(zn.rot);
+      const s = Math.sin(zn.rot);
+      const inside: BuildingInst[] = [];
+      for (const b of this.buildings) {
+        if (b.name) continue; // 실존 랜드마크는 그대로 둔다
+        const dx = b.x - zn.x;
+        const dz = b.z - zn.z;
+        const u = dx * s - dz * c;
+        const v = dx * c + dz * s;
+        if (Math.abs(u) <= zn.hw && Math.abs(v) <= zn.hd) inside.push(b);
+      }
+      if (inside.length === 0) continue;
+      inside.sort((a, b) => b.height - a.height);
+      const isApt = inside[0].kind === 'apt';
+      for (let i = 0; i < Math.min(PER_ZONE, inside.length); i++) {
+        // 아파트 단지는 실제 관례대로 101동·102동…, 그 외는 A/B/C 동으로 붙인다
+        inside[i].name = isApt
+          ? `${zn.name} ${101 + i}동`
+          : `${zn.name} ${String.fromCharCode(65 + i)}동`;
+      }
+    }
   }
 
   /** 이름이 있는 블록을 전부 구역으로 등록한다 (아파트 단지, 상권, 공원 …). */

@@ -141,6 +141,12 @@ export function buildChart(city: City): Chart {
   }
 
   // --- 스윙 구간의 시작/끝 지점 (경로 구간) ---
+  //
+  // 착지점을 경로 중심선 위에 그대로 두면 앵커만 좌우로 살짝 바뀔 뿐 몸은
+  // 정면으로만 나아가 밋밋하다. 노드 자체를 중심선 좌우로 번갈아 밀어 두면
+  // 매 스윙이 왼쪽 끝 → 오른쪽 끝을 가로지르며 실제로 좌우를 오가게 된다.
+  const hopDist = speed * swingBeats * beatDur;
+  const sway = Math.min(58, hopDist * 0.38);
   const segments: SwingSegment[] = [];
   const nodePos: Vec3[] = [];
   const nodeS: number[] = [];
@@ -148,14 +154,17 @@ export function buildChart(city: City): Chart {
     const t = j * swingBeats * beatDur;
     const s = Math.min(L, speed * t);
     const p = path.at(s);
-    nodePos.push({ x: p.x, y: 0, z: p.z });
+    const dir = path.dirAt(s);
+    // 피날레 진입점(j === routeSwings)은 중심선으로 되돌려 타워 나선과 매끄럽게 잇는다
+    const lat = j >= routeSwings ? 0 : (j % 2 === 0 ? 1 : -1) * sway;
+    nodePos.push({ x: p.x + -dir.z * lat, y: 0, z: p.z + dir.x * lat });
     nodeS.push(s);
   }
 
   // --- 1단계: 스카이라인만 보고 잠정 비행 고도를 잡는다 ---
   // 서울은 구간마다 층수 차이가 커서, 고도가 실제 건물 높이를 따라가야
   // 목동(40m대)과 잠실·테헤란로(100m대)가 확실히 다르게 느껴진다.
-  const hop = speed * swingBeats * beatDur;
+  const hop = hopDist;
   const maxStep = hop * 0.55 + 8;
   const flight: number[] = new Array(routeSwings + 1).fill(0);
   for (let j = 0; j <= routeSwings; j++) {
@@ -169,13 +178,16 @@ export function buildChart(city: City): Chart {
   }
 
   // --- 2단계: 잠정 고도에 어울리는 옥상을 앵커로 고른다 ---
+  // 앵커는 이번 스윙이 향하는 쪽(도착 노드가 있는 쪽) 바깥에 건다 — 그쪽으로
+  // 몸을 끌어당기며 감아 도는 모양이 되어 좌우 전환이 눈에 확실히 들어온다.
+  const anchorSideOf = (j: number): 1 | -1 => ((j + 1) % 2 === 0 ? 1 : -1);
   const anchorCand: { b: number; roof: number; x: number; z: number }[] = [];
   for (let j = 0; j < routeSwings; j++) {
     const sMid = (nodeS[j] + nodeS[j + 1]) / 2;
     const p = path.at(sMid);
     const dir = path.dirAt(sMid);
-    const side: 1 | -1 = j % 2 === 0 ? 1 : -1;
-    const off = 38;
+    const side = anchorSideOf(j);
+    const off = sway * 1.1 + 34;
     const cx = p.x + -dir.z * off * side;
     const cz = p.z + dir.x * off * side;
     const target = Math.max(flight[j], flight[j + 1]) + 30;
@@ -210,7 +222,7 @@ export function buildChart(city: City): Chart {
       anchor: { x: cand.x, y: 0, z: cand.z },
       anchorRoof: cand.roof,
       anchorBuilding: cand.b,
-      side: j % 2 === 0 ? 1 : -1,
+      side: anchorSideOf(j),
       finale: false,
     });
   }

@@ -160,7 +160,7 @@ export function resultScreen(
           ${r.cleared && hasNext ? '<button class="btn btn--primary" data-act="next">다음 스테이지</button>' : ''}
           <button class="btn btn--ghost" data-act="select">스테이지 선택</button>
         </div>
-        ${r.cleared ? '' : '<p class="note">SWING POWER 가 바닥나거나 스윙 노트를 연달아 놓치면 추락한다. 박자를 놓쳤을 때 무리하게 따라가지 말고 다음 박에 다시 붙어라.</p>'}
+        ${r.cleared ? '' : '<p class="note">스윙 노트를 연달아 놓치면 추락한다. 박자를 놓쳤을 때 무리하게 따라가지 말고 다음 박에 다시 붙어라.</p>'}
       </div>
     </div>
   `);
@@ -203,8 +203,12 @@ export function howToScreen(onClose: () => void): HTMLElement {
           <p><b style="color:var(--cyan)">◆ 스윙 노트</b> — 화면 정중앙 청록색 마름모. 크게 나타나 오므라들다
           정중앙 기준 링에 꼭 맞는 순간 <kbd>Space</kbd>·<kbd>J</kbd> 또는 화면 탭. 새 웹을 쏴 다음 건물로 넘어간다.</p>
           <p><b style="color:var(--magenta)">● 에어 노트</b> — 분홍색 원. 스윙 도중 공중에서 넣는 트릭. 점수와 모멘텀이 오른다.</p>
-          <p><b>판정</b> — PERFECT / GREAT / GOOD / MISS. 스테이지가 올라갈수록 판정 창이 좁아진다.</p>
-          <p><b>추락</b> — 미스가 쌓이면 고도가 꺼진다. 스윙 노트를 3연속 놓치거나 SWING POWER 가 0이 되면 추락해 실패한다.</p>
+          <p><b>판정</b> — PERFECT / GREAT / GOOD / MISS. 스테이지가 올라갈수록 판정 창이 좁아진다.
+          판정 텍스트는 노트를 가리지 않도록 화면 위쪽에 뜬다.</p>
+          <p><b style="color:var(--magenta)">SWING POWER · 피버</b> — 0%에서 시작해 노트를 성공시킬 때마다 차오른다.
+          100%를 채우면 <b>피버 모드</b>가 8초간 발동해, 타이밍과 상관없이 <b>연타만으로</b> 앞의 노트가 전부
+          PERFECT 처리된다. 피버가 끝나면 게이지는 다시 0%부터다.</p>
+          <p><b>추락</b> — 미스가 쌓이면 고도가 꺼진다. 스윙 노트를 연달아 놓치면 추락해 실패한다.</p>
           <p><b>고도</b> — 비행 고도는 주변 건물 높이를 따라간다. 목동에서는 40m, 잠실 롯데월드타워 정상에서는 555m 까지 올라간다.</p>
           <p><b>피날레</b> — 각 스테이지의 마지막 구간은 랜드마크를 나선으로 타고 오르는 등반 구간이다.</p>
         </div>
