@@ -5,6 +5,8 @@ import type { StageDef } from '../types';
  *
  * 목동로를 축으로 1~14단지가 반듯한 격자로 늘어선 서울의 대표적인 계획 아파트 단지.
  * 남향 판상형 슬래브가 규칙적으로 반복되므로 리듬도 정박 위주로 단순하다.
+ * BGM 은 112BPM E단조 시티팝 "Sunset Pop" — 보컬 훅이 곡을 끌고 가며,
+ * 노트도 그 훅의 픽업 자리에 엇박을 하나씩 얹어 노래를 따라가게 맞췄다.
  * 후반부 오목교 일대에서 하이페리온(69층·256m)이 갑자기 솟아오르며 고도가 급상승한다.
  */
 export const STAGE_MOKDONG: StageDef = {
@@ -13,15 +15,17 @@ export const STAGE_MOKDONG: StageDef = {
   name: '목동 신시가지',
   nameEn: 'Mok-dong Grid',
   district: '서울 양천구',
-  tagline: '반듯한 판상형 격자. 정박만 지키면 넘어간다.',
+  tagline: '해질녘 판상형 격자. 훅이 터지는 자리마다 엇박이 하나씩 끼어든다.',
   difficulty: 1,
   origin: { lat: 37.5365, lon: 126.8768 },
   timeOfDay: 'sunset',
-  bpm: 104,
-  rootNote: 57, // A3
-  musicStyle: 'citypop',
-  rhythm: { steps: [2, 2, 2, 2], variation: [2, 1, 1, 2], variationEvery: 4 },
-  timingScale: 1.35,
+  bpm: 112,
+  rootNote: 52, // E3
+  musicStyle: 'sunsetpop',
+  // 8박 한 프레이즈. 기본은 2박 정박 스윙 셋에 마지막 한 박을 쪼개 훅으로
+  // 밀어 넣는 픽업 노트를 두고, 네 번째 프레이즈마다 앞머리를 잘게 쪼갠다.
+  rhythm: { steps: [2, 2, 2, 1, 1], variation: [1, 1, 2, 2, 2], variationEvery: 4 },
+  timingScale: 1.3,
   hopScale: 1.0,
   finale: '목동 하이페리온 I',
 

@@ -114,7 +114,7 @@ export interface StageDef {
   /** 곡 조성 (신스 BGM 생성에 사용) - 근음 MIDI 노트 */
   rootNote: number;
   /** 음악 스타일 프리셋 */
-  musicStyle: 'citypop' | 'synthwave' | 'kpop' | 'dnb' | 'hardcore';
+  musicStyle: 'sunsetpop' | 'synthwave' | 'kpop' | 'dnb' | 'hardcore';
   rhythm: RhythmPattern;
   /** 판정 창 배율 (작을수록 어렵다) */
   timingScale: number;

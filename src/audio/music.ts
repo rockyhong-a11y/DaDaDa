@@ -54,59 +54,70 @@ interface StylePreset {
 }
 
 const PRESETS: Record<StageDef['musicStyle'], StylePreset> = {
-  citypop: {
-    kick: 'x-------o-------',
+  /**
+   * STAGE 1 · 목동 — "Sunset Pop"
+   * 해질녘 판상형 격자 위를 달리는 미드템포 시티팝. 보컬 훅이 곡의 주인공이고
+   * 리드 신스는 그 사이를 메우는 대답 역할만 한다. 벌스는 VI-VII-v-i 로
+   * 가라앉아 있다가, 코러스에서 VI-VII-III-iv 로 치고 올라가며 훅이 터진다.
+   */
+  sunsetpop: {
+    kick: 'x-----x---x-----',
     snare: '----x-------x---',
-    hat: '--x---x---x---x-',
-    openHat: '------------x---',
-    bass: 'r---r---5---8---',
-    arp: '--x-x---x-x---x-',
-    chords: [0, 8, 3, 10],
-    chordsB: [8, 3, 10, 5],
-    padGain: 0.11,
-    bassGain: 0.4,
+    hat: 'x-x-xx-x-x-xx-x-',
+    openHat: '--------------x-',
+    bass: 'r---r-5-8---5-r-',
+    arp: '--xx-x--x-xx-x--',
+    chords: [8, 10, 7, 0], // VI-VII-v-i · Cmaj-Dmaj-Bm-Em
+    chordsB: [8, 10, 3, 5], // VI-VII-III-iv · Cmaj-Dmaj-Gmaj-Am
+    padGain: 0.12,
+    bassGain: 0.42,
     arpOctave: 1,
     useReese: false,
     clapInsteadOfSnare: false,
     leadOctave: 1,
     leadPhrases: [
       [
-        { step: 2, degree: 2, len: 3 },
+        { step: 4, degree: 4, len: 2 },
         { step: 8, degree: 3, len: 2 },
-        { step: 12, degree: 1, len: 3 },
-        { step: 18, degree: 4, len: 2 },
-        { step: 24, degree: 2, len: 4 },
-        { step: 30, degree: 1, len: 2 },
+        { step: 14, degree: 2, len: 3 },
+        { step: 22, degree: 4, len: 2 },
+        { step: 28, degree: 3, len: 4 },
       ],
       [
-        { step: 0, degree: 3, len: 3 },
-        { step: 6, degree: 2, len: 2 },
-        { step: 14, degree: 4, len: 3 },
-        { step: 20, degree: 3, len: 2 },
-        { step: 26, degree: 1, len: 4 },
+        { step: 2, degree: 2, len: 2 },
+        { step: 7, degree: 3, len: 2 },
+        { step: 12, degree: 4, len: 3 },
+        { step: 19, degree: 3, len: 2 },
+        { step: 24, degree: 1, len: 3 },
+        { step: 29, degree: 2, len: 3 },
       ],
     ],
     vocalOctave: 1,
     vocalVersePhrase: [
-      { step: 4, degree: 0, len: 6, vowel: 'u' },
-      { step: 16, degree: 2, len: 6, vowel: 'o' },
-      { step: 26, degree: 1, len: 5, vowel: 'u' },
+      { step: 2, degree: 0, len: 4, vowel: 'o' },
+      { step: 8, degree: 1, len: 3, vowel: 'a' },
+      { step: 12, degree: 2, len: 5, vowel: 'e' },
+      { step: 20, degree: 1, len: 4, vowel: 'a' },
+      { step: 26, degree: 0, len: 6, vowel: 'u' },
     ],
     vocalPhrases: [
       [
-        { step: 0, degree: 2, len: 5, vowel: 'a' },
-        { step: 6, degree: 3, len: 4, vowel: 'a' },
-        { step: 12, degree: 4, len: 6, vowel: 'o' },
-        { step: 20, degree: 2, len: 4, vowel: 'e' },
-        { step: 25, degree: 1, len: 7, vowel: 'a' },
+        { step: 0, degree: 2, len: 3, vowel: 'a' },
+        { step: 4, degree: 3, len: 3, vowel: 'a' },
+        { step: 8, degree: 4, len: 5, vowel: 'i' },
+        { step: 14, degree: 3, len: 3, vowel: 'e' },
+        { step: 18, degree: 2, len: 4, vowel: 'a' },
+        { step: 24, degree: 1, len: 3, vowel: 'o' },
+        { step: 28, degree: 2, len: 4, vowel: 'a' },
       ],
       [
-        { step: 0, degree: 4, len: 4, vowel: 'a' },
-        { step: 5, degree: 3, len: 4, vowel: 'e' },
-        { step: 10, degree: 2, len: 5, vowel: 'a' },
-        { step: 17, degree: 4, len: 4, vowel: 'o' },
-        { step: 22, degree: 3, len: 3, vowel: 'a' },
-        { step: 26, degree: 0, len: 6, vowel: 'u' },
+        { step: 0, degree: 4, len: 3, vowel: 'a' },
+        { step: 4, degree: 3, len: 3, vowel: 'e' },
+        { step: 8, degree: 2, len: 4, vowel: 'a' },
+        { step: 13, degree: 3, len: 3, vowel: 'i' },
+        { step: 17, degree: 4, len: 4, vowel: 'a' },
+        { step: 22, degree: 2, len: 3, vowel: 'o' },
+        { step: 26, degree: 0, len: 6, vowel: 'a' },
       ],
     ],
   },
