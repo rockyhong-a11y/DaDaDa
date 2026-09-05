@@ -11,6 +11,7 @@ import { Store, type Settings } from './ui/store';
 import {
   howToScreen,
   loadingScreen,
+  setLoadingProgress,
   pauseScreen,
   resultScreen,
   settingsScreen,
@@ -145,19 +146,45 @@ function startStage(stage: StageDef): void {
   if (isCoarsePointer() && window.innerHeight > window.innerWidth) {
     toast('가로로 돌리면 시야가 넓어집니다', 4200);
   }
-  setOverlay(loadingScreen(stage));
+  const loading = loadingScreen(stage);
+  setOverlay(loading);
   // 로딩 화면이 한 프레임 그려진 뒤 무거운 생성 작업을 시작한다
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
-      game.load(stage);
-      gameOffset(store.settings.offsetMs / 1000);
-      attract = false;
-      setOverlay(null);
-      hud = new Hud(stage);
-      uiRoot.appendChild(hud.el);
-      game.start();
+      void beginStage(stage, loading);
     });
   });
+}
+
+/**
+ * 도시 생성 → (음원 스테이지라면) BGM 준비 → 판 시작.
+ *
+ * 음원을 안 기다리고 시작하면 내려받는 동안 앞부분이 통째로 무음이 되고
+ * 곡이 중간부터 튀어 들어온다. 회선에 따라 그 무음이 수십 초까지 가므로
+ * "BGM 이 안 바뀌었다" 로 보인다. 곡이 준비된 뒤에 판을 연다.
+ */
+async function beginStage(stage: StageDef, loading: HTMLElement): Promise<void> {
+  game.load(stage);
+  gameOffset(store.settings.offsetMs / 1000);
+
+  if (stage.bgm) {
+    let waiting = true;
+    const tick = (): void => {
+      if (!waiting) return;
+      const pct = Math.round(game.bgmProgress * 100);
+      setLoadingProgress(loading, `BGM 내려받는 중… ${pct}%`, game.bgmProgress);
+      requestAnimationFrame(tick);
+    };
+    tick();
+    await game.bgmReady();
+    waiting = false;
+  }
+
+  attract = false;
+  setOverlay(null);
+  hud = new Hud(stage);
+  uiRoot.appendChild(hud.el);
+  game.start();
 }
 
 function openPause(): void {
@@ -276,7 +303,7 @@ function frame(now: number): void {
     fpsFrames++;
     if (fpsAcc > 0.5) {
       const dist = game.camera.position.distanceTo(game.playerPosition);
-      debugEl.textContent = `${(fpsFrames / fpsAcc).toFixed(0)} fps · cam ${dist.toFixed(1)} m · alt ${game.hud.altitude.toFixed(0)} m`;
+      debugEl.textContent = `${(fpsFrames / fpsAcc).toFixed(0)} fps · cam ${dist.toFixed(1)} m · alt ${game.hud.altitude.toFixed(0)} m · bgm ${game.bgmSource}`;
       fpsAcc = 0;
       fpsFrames = 0;
     }
@@ -330,18 +357,14 @@ function attractCamera(dt: number): void {
 function boot(): void {
   const direct = params.get('stage');
   const target = direct ? (STAGES.find((s) => s.id === direct) ?? STAGES[0]) : STAGES[2];
-  setOverlay(loadingScreen(target));
+  const loading = loadingScreen(target);
+  setOverlay(loading);
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
       if (direct) {
         // ?stage=<id> 로 바로 진입 (개발·검증용)
-        game.load(target);
-        attract = false;
-        setOverlay(null);
-        hud = new Hud(target);
-        uiRoot.appendChild(hud.el);
         engine.unlock();
-        game.start();
+        void beginStage(target, loading);
       } else {
         // 타이틀 배경으로 여의도 스카이라인을 띄운다
         game.load(target);

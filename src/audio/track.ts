@@ -35,11 +35,20 @@ export class TrackPlayer {
    * 음원을 받아 디코딩한다. 실패하면 null 을 돌려주고 호출부는 신스 BGM 으로
    * 되돌아간다 — 오프라인 단일 HTML 배포본이 정확히 이 경우다.
    */
-  static async load(engine: AudioEngine, url: string): Promise<AudioBuffer | null> {
+  static async load(
+    engine: AudioEngine,
+    url: string,
+    onProgress?: (ratio: number) => void,
+  ): Promise<AudioBuffer | null> {
     try {
       const res = await fetch(url);
       if (!res.ok) return null;
-      return await engine.ctx.decodeAudioData(await res.arrayBuffer());
+      const bytes = await readWithProgress(res, onProgress);
+      if (!bytes) return null;
+      onProgress?.(1);
+      // Safari 구버전은 콜백형만 지원해 undefined 를 돌려준다 — 그 경우도 폴백.
+      const decoded = await engine.ctx.decodeAudioData(bytes);
+      return decoded ?? null;
     } catch {
       return null;
     }
@@ -108,4 +117,35 @@ export class TrackPlayer {
     this.src.disconnect();
     this.src = null;
   }
+}
+
+/**
+ * 진행률을 흘리면서 응답 본문을 모은다.
+ * 음원은 수 MB 라 회선에 따라 수 초에서 수십 초가 걸린다 — 로딩 화면에
+ * 얼마나 남았는지 보여 주지 않으면 그냥 멈춘 것처럼 보인다.
+ * 스트림을 못 쓰는 환경에서는 통째로 받는 쪽으로 조용히 물러난다.
+ */
+async function readWithProgress(
+  res: Response,
+  onProgress?: (ratio: number) => void,
+): Promise<ArrayBuffer | null> {
+  const total = Number(res.headers.get('content-length') ?? 0);
+  if (!res.body || !total || !onProgress) return res.arrayBuffer();
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let got = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    got += value.length;
+    onProgress(Math.min(0.98, got / total));
+  }
+  const out = new Uint8Array(got);
+  let at = 0;
+  for (const c of chunks) {
+    out.set(c, at);
+    at += c.length;
+  }
+  return out.buffer;
 }

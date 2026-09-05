@@ -114,7 +114,7 @@ export function stageSelectScreen(
 // ---------------------------------------------------------------- 로딩
 
 export function loadingScreen(stage: StageDef): HTMLElement {
-  return el(`
+  const root = el(`
     <div class="loading">
       <div class="loading__inner">
         <div class="title-mark__sub" style="font-size:15px">${stage.name}</div>
@@ -123,6 +123,26 @@ export function loadingScreen(stage: StageDef): HTMLElement {
       </div>
     </div>
   `);
+  return root;
+}
+
+/**
+ * 로딩 화면의 안내 문구를 바꾼다.
+ * 음원 BGM 은 수 MB 라 회선에 따라 몇 초씩 걸린다 — 무엇을 기다리는지와
+ * 얼마나 남았는지를 보여 주지 않으면 화면이 멈춘 것처럼 보인다.
+ */
+export function setLoadingProgress(root: HTMLElement | null, label: string, ratio: number): void {
+  if (!root) return;
+  const text = root.querySelector('.loading__text');
+  if (text) text.textContent = label;
+  const bar = root.querySelector<HTMLElement>('.loading__bar i');
+  if (bar && ratio >= 0) {
+    // 기본 상태는 좌우로 흐르는 무한 애니메이션이다. 실제 진행률을 알게 된
+    // 순간부터는 애니메이션과 transform 을 걷어내고 폭으로만 표현한다.
+    bar.style.animation = 'none';
+    bar.style.transform = 'none';
+    bar.style.width = `${Math.round(Math.max(0, Math.min(1, ratio)) * 100)}%`;
+  }
 }
 
 // ---------------------------------------------------------------- 결과
