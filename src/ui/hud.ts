@@ -64,7 +64,7 @@ export class Hud {
     this.el.className = 'hud';
     this.el.innerHTML = `
       <div class="hud__top">
-        <div class="hud__stage">STAGE ${stage.index + 1} · ${stage.name}<small>${stage.district} · ${stage.bpm} BPM</small><small class="place" hidden></small></div>
+        <div class="hud__stage">STAGE ${stage.index + 1} · ${stage.name}<small>${stage.district} · ${stage.bpm} BPM${stage.bgm ? ` · ♪ ${stage.bgm.title}` : ''}</small><small class="place" hidden></small></div>
         <div class="hud__score"><b>0</b><span>ACC 100.00%</span></div>
         <div class="hud__combo"><b>0</b><span>COMBO</span></div>
       </div>

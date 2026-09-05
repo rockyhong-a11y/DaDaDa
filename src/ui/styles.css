@@ -326,6 +326,16 @@ kbd {
   flex: 1;
 }
 
+.stage-card__track {
+  font-size: 11px;
+  font-family: var(--mono);
+  color: var(--accent, #7fd1ff);
+  opacity: 0.85;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .stage-card__meta {
   display: flex;
   align-items: center;
@@ -451,6 +461,11 @@ kbd {
   font-weight: 500;
   letter-spacing: 0.14em;
   color: var(--muted);
+  /* 곡 제목이 붙으면 좁은 화면에서 상단 바를 밀어낸다 — 잘라서 막는다 */
+  max-width: 46vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .hud__stage small.place {

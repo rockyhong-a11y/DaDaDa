@@ -92,6 +92,28 @@ export interface RhythmPattern {
   variationEvery?: number;
 }
 
+/**
+ * 실제 음원 BGM.
+ *
+ * 지정하면 신스 시퀀서 대신 오디오 파일을 재생한다. 파일을 못 받아오면
+ * (오프라인 단일 HTML 배포본, 네트워크 실패 등) 자동으로 신스 프리셋으로
+ * 되돌아가므로, 스테이지는 음원이 없어도 항상 굴러간다.
+ */
+export interface StageBgm {
+  /** 페이지 기준 상대 경로 */
+  url: string;
+  /** 곡의 실측 BPM. StageDef.bpm 과 반드시 같아야 차트가 곡에 붙는다. */
+  bpm: number;
+  /** 첫 마디 첫 박의 파일 내 위치(초). 이 지점이 차트의 0박이 된다. */
+  downbeat: number;
+  /** downbeat 이후 실제로 쓸 수 있는 길이(초). 차트 길이의 상한. */
+  playable: number;
+  /** 재생 게인 (신스 트랙과 체감 음량을 맞추는 값) */
+  gain: number;
+  /** 결과 화면·크레디트 표기용 */
+  title: string;
+}
+
 export interface StageDef {
   id: string;
   index: number;
@@ -113,8 +135,10 @@ export interface StageDef {
   bpm: number;
   /** 곡 조성 (신스 BGM 생성에 사용) - 근음 MIDI 노트 */
   rootNote: number;
-  /** 음악 스타일 프리셋 */
+  /** 음악 스타일 프리셋 (신스 폴백 트랙) */
   musicStyle: 'sunsetpop' | 'synthwave' | 'kpop' | 'dnb' | 'hardcore';
+  /** 실제 음원 BGM. 지정하면 신스 대신 이 파일을 쓴다. */
+  bgm?: StageBgm;
   rhythm: RhythmPattern;
   /** 판정 창 배율 (작을수록 어렵다) */
   timingScale: number;

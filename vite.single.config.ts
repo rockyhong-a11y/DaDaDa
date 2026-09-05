@@ -55,6 +55,9 @@ function inlineEverything(outputName: string): Plugin {
 export default defineConfig({
   base: './',
   plugins: [inlineEverything('dadada.html')],
+  // public/ 를 복사하지 않는다. 음원(3MB)까지 끌고 오면 "파일 하나" 가 아니게 된다.
+  // 이 배포본에서는 fetch 가 실패하고 스테이지가 신스 BGM 으로 되돌아간다.
+  publicDir: false,
   build: {
     target: 'es2022',
     outDir: 'dist-single',

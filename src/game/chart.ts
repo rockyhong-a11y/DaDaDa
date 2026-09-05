@@ -79,6 +79,8 @@ export interface Chart {
 
 const BASE_SPEED = 27; // m/s
 const LEAD_IN_BEATS = 16;
+/** 마지막 노트 뒤에 남겨 두는 여운 (박) */
+const TAIL_BEATS = 8;
 
 function expandRhythm(r: RhythmPattern, count: number): number[] {
   const beats: number[] = [];
@@ -118,7 +120,21 @@ export function buildChart(city: City): Chart {
   const targetSpeed = BASE_SPEED * stage.hopScale;
 
   // 경로를 몇 개의 스윙으로 건널지: 목표 속도에 가장 가까운 스윙 수
-  const routeSwings = Math.max(6, Math.round(L / (targetSpeed * swingBeats * beatDur)));
+  let routeSwings = Math.max(6, Math.round(L / (targetSpeed * swingBeats * beatDur)));
+  let finalGlideLen = 6;
+
+  // 실제 음원을 쓰는 스테이지는 곡 길이가 절대 상한이다. 신스 BGM 은 차트가
+  // 원하는 만큼 늘어나 주지만, 음원이 붙으면 관계가 뒤집힌다 — 곡이 끝나기 전에
+  // 정상에 도착해야 한다. 모자라면 스윙 수를 줄여 같은 거리를 더 빨리 날고,
+  // 남으면 마무리 활강을 늘려 곡의 클라이맥스 위에서 도시를 길게 내려다본다
+  // (경로 스윙을 늘리면 비행 속도가 떨어져 스테이지 체감이 통째로 느려진다).
+  if (stage.bgm) {
+    const budget = Math.floor(stage.bgm.playable / beatDur / swingBeats) - TAIL_BEATS / swingBeats;
+    const spare = budget - (routeSwings + finaleSwings + finalGlideLen);
+    if (spare < 0) routeSwings = Math.max(6, routeSwings + spare);
+    else finalGlideLen += Math.min(spare, finalGlideLen);
+  }
+
   const routeBeats = routeSwings * swingBeats;
   const speed = L / (routeBeats * beatDur);
 
@@ -127,7 +143,6 @@ export function buildChart(city: City): Chart {
   // 뛰어내려 도시 위를 길게 미끄러지며 끝난다.
   const midGlideLen = Math.max(4, Math.min(8, Math.round(routeSwings * 0.1)));
   const midGlideStart = Math.max(2, Math.round(routeSwings * 0.46));
-  const finalGlideLen = 6;
   const totalSwings = routeSwings + finaleSwings + finalGlideLen;
   const totalBeatSpan = totalSwings * swingBeats;
   const glides: GlideRange[] = [
@@ -382,8 +397,7 @@ export function buildChart(city: City): Chart {
 
   balanceTouchDensity(notes, stage);
 
-  const tailBeats = 8;
-  const totalBeats = Math.ceil((totalBeatSpan + tailBeats) / 4) * 4;
+  const totalBeats = Math.ceil((totalBeatSpan + TAIL_BEATS) / 4) * 4;
 
   return {
     stage,

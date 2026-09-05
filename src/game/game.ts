@@ -2,6 +2,7 @@ import { Group, Vector3 } from 'three';
 import type { AudioEngine } from '../audio/context';
 import { Conductor } from '../audio/conductor';
 import { MusicPlayer } from '../audio/music';
+import { TrackPlayer } from '../audio/track';
 import { Sfx, type Judgement } from '../audio/sfx';
 import type { StageDef } from '../data/types';
 import { City, type BuildingInst } from '../world/citygen';
@@ -185,6 +186,11 @@ export class Game {
   private readonly conductor: Conductor;
   private readonly sfx: Sfx;
   private music: MusicPlayer | null = null;
+  private track: TrackPlayer | null = null;
+  /** 실제 음원 디코딩. load() 에서 걸어 두고 start() 에서 받아 쓴다. */
+  private bgmLoad: Promise<AudioBuffer | null> | null = null;
+  /** 진행 중인 판(run)의 식별자. 늦게 도착한 음원이 지난 판에 붙는 걸 막는다. */
+  private runToken = 0;
 
   private stage!: StageDef;
   private city!: City;
@@ -286,7 +292,15 @@ export class Game {
 
   load(stage: StageDef): void {
     this.unloadWorld();
+    this.music?.stop();
+    this.music = null;
+    this.track?.stop(0.12);
+    this.track = null;
+    this.runToken++;
     this.stage = stage;
+    // 음원은 미리 받아 둔다. 준비 화면에서 대개 끝나지만, 늦어도 상관없다 —
+    // TrackPlayer 가 도착 시점의 곡 시간부터 이어 붙인다.
+    this.bgmLoad = stage.bgm ? TrackPlayer.load(this.engine, stage.bgm.url) : null;
     this.city = new City(stage);
     // 실존 랜드마크 + 블록에서 이름을 물려받은 대표 동. 둘 다 이름표를 띄운다.
     this.landmarksList = this.city.buildings.filter((b) => !!b.name);
@@ -419,14 +433,35 @@ export class Game {
 
   start(): void {
     this.conductor.start(0.25);
-    this.music = new MusicPlayer(this.engine, this.conductor, this.stage, this.chart.totalBeats, this.chart.leadInBeats);
     this.phase = 'playing';
     this.hud.phase = 'playing';
+    const token = ++this.runToken;
+    const bgm = this.stage.bgm;
+    if (!bgm || !this.bgmLoad) {
+      this.startSynth();
+      return;
+    }
+    void this.bgmLoad.then((buffer) => {
+      // 이미 다른 판이 시작됐거나 판이 끝났으면 붙이지 않는다
+      if (token !== this.runToken || (this.phase !== 'playing' && this.phase !== 'paused')) return;
+      if (!buffer) {
+        this.startSynth();
+        return;
+      }
+      this.track = new TrackPlayer(this.engine, this.conductor, bgm, buffer);
+      if (this.phase === 'playing') this.track.start();
+    });
+  }
+
+  /** 음원이 없거나 못 받아왔을 때의 폴백 — 절차 생성 BGM. */
+  private startSynth(): void {
+    this.music = new MusicPlayer(this.engine, this.conductor, this.stage, this.chart.totalBeats, this.chart.leadInBeats);
   }
 
   pause(): void {
     if (this.phase !== 'playing') return;
     this.conductor.pause();
+    this.track?.pause();
     this.phase = 'paused';
     this.hud.phase = 'paused';
     this.engine.setMusicVolume(0.12);
@@ -435,6 +470,7 @@ export class Game {
   resume(): void {
     if (this.phase !== 'paused') return;
     this.conductor.resume();
+    this.track?.resume();
     this.phase = 'playing';
     this.hud.phase = 'playing';
     this.engine.setMusicVolume(0.72);
@@ -443,6 +479,9 @@ export class Game {
   restart(): void {
     this.conductor.stop();
     this.music?.stop();
+    this.music = null;
+    this.track?.stop(0.12);
+    this.track = null;
     this.resetRun();
     this.engine.setMusicVolume(0.72);
     this.start();
@@ -607,6 +646,7 @@ export class Game {
     const songTime = this.conductor.time;
     this.hud.time = songTime;
     this.music?.update();
+    this.track?.update();
     this.cityMesh?.update(this.elapsed);
     this.tilesLayer?.update();
     this.water?.update(this.elapsed);
@@ -653,6 +693,7 @@ export class Game {
     this.phase = cleared ? 'cleared' : 'failed';
     this.hud.phase = this.phase;
     this.music?.stop();
+    this.track?.stop();
     this.conductor.stop();
     this.engine.setMusicVolume(0.72);
     const acc = accuracy(this.score);

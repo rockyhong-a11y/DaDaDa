@@ -91,6 +91,7 @@ export function stageSelectScreen(
         <div class="stage-card__name">${s.name}</div>
         <div class="stage-card__district">${s.district}</div>
         <div class="stage-card__tag">${s.tagline}</div>
+        ${s.bgm ? `<div class="stage-card__track">♪ ${s.bgm.title}</div>` : ''}
         <div class="stage-card__meta">
           <span class="diff">${Array.from({ length: 5 }, (_, k) => `<i class="${k < s.difficulty ? 'on' : ''}"></i>`).join('')}</span>
           <span>${s.bpm} BPM</span>
