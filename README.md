@@ -429,4 +429,7 @@ Google 3D Tiles 키. 기록과 설정은 `localStorage` 에 저장되며, 저장
   게임용으로 단순화·재구성한 것이다. 실측 지도가 아니다.
 - `npm run fetch:osm` 으로 받는 데이터: © OpenStreetMap contributors, ODbL 1.0.
 - Google Photorealistic 3D Tiles 사용 시 Google Maps Platform 약관과 저작자 표시 요건을 따른다.
-- 음악·효과음은 전부 런타임 합성이라 외부 저작물이 포함되어 있지 않다.
+- 신스 BGM 과 효과음은 전부 런타임 합성이라 외부 저작물이 들어 있지 않다.
+- `docs/audio/mokdong.mp3` 는 STAGE 1 전용 생성 음원이다. **코드 라이선스와 별개**이므로
+  이 저장소를 포크·재배포할 때는 해당 음원의 이용 조건을 따로 확인해야 한다.
+  파일을 지우면 STAGE 1 은 신스 BGM 으로 자동 폴백하므로 게임은 그대로 돌아간다.
