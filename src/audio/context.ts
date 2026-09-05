@@ -8,6 +8,8 @@ export class AudioEngine {
   readonly musicBus: GainNode;
   readonly sfxBus: GainNode;
   private readonly limiter: DynamicsCompressorNode;
+  /** 리미터가 놓친 트랜지언트 오버슛을 천장 아래로 접어 넣는 소프트 클리퍼 */
+  private readonly ceiling: WaveShaperNode;
   /** 공용 노이즈 버퍼 (스네어·하이햇·바람소리에 재사용) */
   readonly noise: AudioBuffer;
   readonly reverb: ConvolverNode;
@@ -45,8 +47,17 @@ export class AudioEngine {
     this.sfxBus.connect(this.reverbSend);
     this.reverbSend.connect(this.reverb);
     this.reverb.connect(this.master);
+    // 리미터의 3ms 어택으로는 북 같은 날카로운 타격의 첫 순간을 못 잡아, 밀도가
+    // 높은 스테이지에서 마스터가 1.0 을 넘겨 실제로 깨지는 프레임이 나왔다.
+    // 어택을 더 당기면 타격감이 뭉개지므로, 대신 뒤에 소프트 클리퍼를 하나 더 둔다.
+    // 0.8 아래는 손대지 않고 통과시키므로 평상시 음색에는 영향이 없다.
+    this.ceiling = this.ctx.createWaveShaper();
+    this.ceiling.curve = softClipCurve(0.8);
+    this.ceiling.oversample = '2x';
+
     this.master.connect(this.limiter);
-    this.limiter.connect(this.ctx.destination);
+    this.limiter.connect(this.ceiling);
+    this.ceiling.connect(this.ctx.destination);
 
     this.noise = makeNoise(this.ctx, 2);
   }
@@ -121,4 +132,20 @@ function makeImpulse(ctx: BaseAudioContext, seconds: number, decay: number): Aud
     }
   }
   return buf;
+}
+
+/**
+ * 소프트 클립 커브.
+ * |x| <= knee 는 그대로 통과하고, 그 위는 tanh 로 눕혀 1.0 을 절대 넘지 않게 한다.
+ * 하드 클리핑과 달리 무릎 아래가 완전히 선형이라 평상시에는 아무 색도 입히지 않는다.
+ */
+function softClipCurve(knee: number, points = 2048): Float32Array<ArrayBuffer> {
+  const c = new Float32Array(new ArrayBuffer(points * 4));
+  for (let i = 0; i < points; i++) {
+    const x = (i / (points - 1)) * 2 - 1;
+    const a = Math.abs(x);
+    const y = a <= knee ? a : knee + (1 - knee) * Math.tanh((a - knee) / (1 - knee));
+    c[i] = Math.sign(x) * y;
+  }
+  return c;
 }

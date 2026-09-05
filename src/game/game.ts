@@ -622,7 +622,7 @@ export class Game {
     this.hud.lastJudge = kind;
     this.hud.lastJudgeAt = this.elapsed;
     this.hud.lastOffset = offset;
-    this.sfx.judge(kind, this.score.combo);
+    this.sfx.judge(kind, this.score.combo, isSwing);
 
     if (kind === 'MISS') {
       this.heat = Math.max(0, this.heat - 0.5);

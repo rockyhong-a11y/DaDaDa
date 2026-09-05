@@ -5,9 +5,8 @@ import type { StageDef } from '../types';
  *
  * 목동로를 축으로 1~14단지가 반듯한 격자로 늘어선 서울의 대표적인 계획 아파트 단지.
  * 남향 판상형 슬래브가 규칙적으로 반복되므로 리듬도 정박 위주로 단순하다.
- * BGM 은 실제 음원 "getting carried away with the time" (98BPM, 140s).
- * 노트 그리드를 곡의 실측 박자에 붙였고, 음원을 못 받아오는 환경에서는
- * 같은 98BPM 의 신스 프리셋 "Sunset Pop" 으로 자동 폴백한다.
+ * BGM 은 112BPM E단조 시티팝 "Sunset Pop" — 보컬 훅이 곡을 끌고 가며,
+ * 노트도 그 훅의 픽업 자리에 엇박을 하나씩 얹어 노래를 따라가게 맞췄다.
  * 후반부 오목교 일대에서 하이페리온(69층·256m)이 갑자기 솟아오르며 고도가 급상승한다.
  */
 export const STAGE_MOKDONG: StageDef = {
@@ -20,20 +19,9 @@ export const STAGE_MOKDONG: StageDef = {
   difficulty: 1,
   origin: { lat: 37.5365, lon: 126.8768 },
   timeOfDay: 'sunset',
-  bpm: 98,
+  bpm: 112,
   rootNote: 52, // E3
   musicStyle: 'sunsetpop',
-  // 실측값: 스펙트럼 플럭스 온셋 엔벨로프에 빗살 필터를 걸어 98.00BPM 을 얻었고
-  // (돌출도 2.73, 차순위 2.13), 저역 킥 에너지가 가장 센 박을 마디 머리로 잡아
-  // 0.889s 를 다운비트로 확정했다. 곡은 140.01s 에서 뚝 끊기므로 그 앞을 상한으로 둔다.
-  bgm: {
-    url: 'audio/mokdong.mp3',
-    bpm: 98,
-    downbeat: 0.8891,
-    playable: 137.0,
-    gain: 1.15,
-    title: 'getting carried away with the time',
-  },
   // 8박 한 프레이즈. 기본은 2박 정박 스윙 셋에 마지막 한 박을 쪼개 훅으로
   // 밀어 넣는 픽업 노트를 두고, 네 번째 프레이즈마다 앞머리를 잘게 쪼갠다.
   rhythm: { steps: [2, 2, 2, 1, 1], variation: [1, 1, 2, 2, 2], variationEvery: 4 },
